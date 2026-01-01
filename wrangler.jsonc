@@ -1,9 +1,7 @@
 {
-  "name": "quizmaster",                // match dashboard Worker name
-  "compatibility_date": "2026-01-01",
+  "name": "quizmaster",                // match the Worker name in Cloudflare dashboard
+  "compatibility_date": "2026-01-01",  // modern features
   "assets": {
-    "directory": "./dist"              // serve your built app
-  },
-  "workers_dev": false,                // match remote
-  "preview_urls": false                // match remote
+    "directory": "./dist"              // Vite build output
+  }
 }
