@@ -1,7 +1,8 @@
 {
-  "name": "quizmaster",                // match the Worker name in Cloudflare dashboard
-  "compatibility_date": "2026-01-01",  // modern features
+  "name": "quizmaster",                // match Cloudflare dashboard Worker name
+  "compatibility_date": "2026-01-01",
   "assets": {
     "directory": "./dist"              // Vite build output
   }
 }
+
