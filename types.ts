@@ -9,6 +9,16 @@ export interface Question {
   topic: string;
 }
 
+export interface QuizAttempt {
+  id: string;
+  date: string;
+  topic: string;
+  totalQuestions: number;
+  correctAnswers: number;
+  score: number;
+  difficulty: Difficulty;
+}
+
 export interface QuizState {
   questions: Question[];
   currentIndex: number;
@@ -34,4 +44,5 @@ export interface UserStats {
   totalAttempted: number;
   correctAnswers: number;
   topicMastery: Record<string, number>;
+  attempts: QuizAttempt[];
 }

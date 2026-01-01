@@ -1,30 +1,51 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TOPICS_METADATA, EXAM_TARGETS } from './constants';
-import { ExamTopic, Question, Difficulty } from './types';
+import { ExamTopic, Question, Difficulty, UserStats, QuizAttempt } from './types';
 import { TopicCard } from './components/TopicCard';
 import { QuizEngine } from './components/QuizEngine';
 import { StatsView } from './components/StatsView';
 import { CustomTopicCard } from './components/CustomTopicCard';
+import { PerformanceDashboard } from './components/PerformanceDashboard';
+import { QuizSetupModal } from './components/QuizSetupModal';
 import { generateQuizQuestions } from './services/geminiService';
 
 const App: React.FC = () => {
-  const [view, setView] = useState<'home' | 'quiz' | 'stats'>('home');
+  const [view, setView] = useState<'home' | 'quiz' | 'stats' | 'dashboard'>('home');
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [globalDifficulty, setGlobalDifficulty] = useState<Difficulty>('Medium');
+  const [showSetupModal, setShowSetupModal] = useState(false);
+  const [pendingTopicId, setPendingTopicId] = useState<string | null>(null);
 
-  const handleStartPractice = async (topic: string, difficulty: Difficulty = globalDifficulty) => {
+  const [stats, setStats] = useState<UserStats>(() => {
+    const saved = localStorage.getItem('pharmaquiz_stats');
+    if (saved) return JSON.parse(saved);
+    return {
+      totalAttempted: 0,
+      correctAnswers: 0,
+      topicMastery: {},
+      attempts: []
+    };
+  });
+
+  useEffect(() => {
+    localStorage.setItem('pharmaquiz_stats', JSON.stringify(stats));
+  }, [stats]);
+
+  const handleStartPractice = async (topic: string, count: number, difficulty: Difficulty = globalDifficulty) => {
     setLoading(true);
     setError(null);
     setSelectedTopic(topic);
+    setShowSetupModal(false);
     try {
-      const generated = await generateQuizQuestions(topic, 15, difficulty);
+      const generated = await generateQuizQuestions(topic, count, difficulty);
       setQuestions(generated);
       setView('quiz');
+      setAnswers({});
     } catch (err) {
       setError("Failed to generate questions. The pharmacy lab is currently busy! Please try again.");
     } finally {
@@ -32,14 +53,50 @@ const App: React.FC = () => {
     }
   };
 
+  const handleTopicClick = (topicId: string) => {
+    setPendingTopicId(topicId);
+    setShowSetupModal(true);
+  };
+
+  const handleRetake = () => {
+    setAnswers({});
+    setView('quiz');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleFinishQuiz = (finalAnswers: Record<string, number>) => {
+    const correctCount = questions.reduce((acc, q) => (finalAnswers[q.id] === q.correctAnswer ? acc + 1 : acc), 0);
+    const score = Math.round((correctCount / questions.length) * 100);
+    
+    const newAttempt: QuizAttempt = {
+      id: `attempt-${Date.now()}`,
+      date: new Date().toISOString(),
+      topic: selectedTopic || 'Custom',
+      totalQuestions: questions.length,
+      correctAnswers: correctCount,
+      score: score,
+      difficulty: globalDifficulty
+    };
+
+    setStats(prev => {
+      const topicMastery = { ...prev.topicMastery };
+      const currentMastery = topicMastery[newAttempt.topic] || 0;
+      topicMastery[newAttempt.topic] = currentMastery === 0 ? score : (currentMastery + score) / 2;
+
+      return {
+        totalAttempted: prev.totalAttempted + newAttempt.totalQuestions,
+        correctAnswers: prev.correctAnswers + newAttempt.correctAnswers,
+        topicMastery,
+        attempts: [...prev.attempts, newAttempt]
+      };
+    });
+
     setAnswers(finalAnswers);
     setView('stats');
   };
 
   const handleExploreRelated = (topic: string) => {
-    // When exploring related topics, we keep the current difficulty
-    handleStartPractice(topic, globalDifficulty);
+    handleStartPractice(topic, 10, globalDifficulty);
   };
 
   const reset = () => {
@@ -47,6 +104,8 @@ const App: React.FC = () => {
     setSelectedTopic(null);
     setQuestions([]);
     setAnswers({});
+    setShowSetupModal(false);
+    setPendingTopicId(null);
   };
 
   if (loading) {
@@ -58,7 +117,7 @@ const App: React.FC = () => {
           <div className="absolute inset-0 flex items-center justify-center text-4xl">💊</div>
         </div>
         <h2 className="text-2xl font-bold text-slate-800 mb-2">Preparing your practice session...</h2>
-        <p className="text-slate-500 max-w-sm">AI is formulating 15 high-yield pharmacist questions for <strong>"{selectedTopic}"</strong>.</p>
+        <p className="text-slate-500 max-w-sm">AI is formulating high-yield pharmacist questions for <strong>"{selectedTopic}"</strong>.</p>
         <div className="mt-12 flex gap-3">
            <div className="h-1.5 w-1.5 bg-blue-600 rounded-full animate-bounce [animation-delay:0s]"></div>
            <div className="h-1.5 w-1.5 bg-blue-600 rounded-full animate-bounce [animation-delay:0.2s]"></div>
@@ -71,77 +130,83 @@ const App: React.FC = () => {
   const difficultyLevels: Difficulty[] = ['Easy', 'Medium', 'Hard'];
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20">
-      {/* Navigation Header */}
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-100 px-4 py-4 md:px-8">
+    <div className="min-h-screen bg-slate-50 pb-20 overflow-x-hidden">
+      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-100 px-6 py-4 md:px-8">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2 cursor-pointer" onClick={reset}>
             <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white text-xl shadow-lg shadow-blue-200">
               💊
             </div>
-            <div>
-              <h1 className="text-lg font-black text-slate-800 leading-tight">PharmaQuiz <span className="text-blue-600">Pro</span></h1>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Aistudio Power</p>
+            <div className="flex flex-col">
+              <h1 className="text-sm md:text-lg font-black text-slate-800 leading-tight">PharmaQuiz <span className="text-blue-600">Pro</span></h1>
+              <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest">Aistudio Power</p>
             </div>
           </div>
           
           <nav className="hidden md:flex gap-8">
-            <button className="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors">Daily Drills</button>
-            <button className="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors">Exam Roadmap</button>
-            <button className="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors">Leaderboard</button>
+            <button 
+              onClick={() => setView('home')}
+              className={`text-sm font-medium transition-colors ${view === 'home' ? 'text-blue-600' : 'text-slate-600 hover:text-blue-600'}`}
+            >
+              Practice Hub
+            </button>
+            <button 
+              onClick={() => setView('dashboard')}
+              className={`text-sm font-medium transition-colors ${view === 'dashboard' ? 'text-blue-600' : 'text-slate-600 hover:text-blue-600'}`}
+            >
+              My Performance
+            </button>
+            <button className="text-sm font-medium text-slate-400 cursor-not-allowed">Roadmap</button>
           </nav>
 
-          <button className="bg-slate-900 text-white px-5 py-2.5 rounded-full text-sm font-bold hover:bg-slate-800 transition-all">
+          <button className="bg-slate-900 text-white px-4 md:px-5 py-2 md:py-2.5 rounded-full text-[10px] md:text-sm font-bold hover:bg-slate-800 transition-all shadow-lg active:scale-95">
             Get Pro
           </button>
         </div>
       </header>
 
       {view === 'home' && (
-        <main className="max-w-7xl mx-auto px-4 pt-12">
+        <main className="max-w-7xl mx-auto px-6 md:px-8 pt-12">
           {error && (
             <div className="mb-8 p-4 bg-red-50 border border-red-100 text-red-600 rounded-2xl text-sm flex items-center gap-3">
               <span>⚠️</span> {error}
             </div>
           )}
 
-          {/* Hero Section */}
-          <section className="mb-16 text-center max-w-3xl mx-auto">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-full text-xs font-bold uppercase tracking-wider mb-6">
+          <section className="mb-16 text-center max-w-3xl mx-auto animate-reveal">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-wider mb-6">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
               </span>
               Exam Season 2024 Prep Live
             </div>
-            <h2 className="text-4xl md:text-5xl font-black text-slate-900 mb-6 leading-tight">
+            <h2 className="text-3xl md:text-5xl font-black text-slate-900 mb-6 leading-tight break-words">
               Master your <span className="text-blue-600 underline decoration-blue-100 decoration-8 underline-offset-4">Pharmacist Exams</span> with AI
             </h2>
-            <p className="text-lg text-slate-500 mb-10 leading-relaxed">
+            <p className="text-base md:text-lg text-slate-500 mb-10 leading-relaxed">
               Targeted practice for ESIC, RRB, GPAT, and State PSC Government Exams. 
-              Our AI analyzes your weaknesses and helps you master complex pharmacology in minutes.
+              Our AI analyzes your performance to help you master complex clinical pharmacy.
             </p>
             
-            <div className="flex flex-wrap justify-center gap-3 text-xs">
+            <div className="flex flex-wrap justify-center gap-2 md:gap-3 text-[10px] md:text-xs">
               {EXAM_TARGETS.map(target => (
-                <span key={target} className="px-4 py-2 bg-white border border-slate-200 rounded-full text-slate-600 font-medium shadow-sm">
+                <span key={target} className="px-3 md:px-4 py-2 bg-white border border-slate-200 rounded-full text-slate-600 font-medium shadow-sm hover:border-blue-300 transition-colors cursor-default">
                   #{target}
                 </span>
               ))}
             </div>
           </section>
 
-          {/* Custom Section */}
           <section className="mb-12">
             <CustomTopicCard onStart={handleStartPractice} isLoading={loading} />
           </section>
 
-          {/* Topic Grid */}
           <section className="mb-20">
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-6">
               <div className="space-y-1">
                 <div className="flex items-center gap-3">
-                  <h3 className="text-2xl font-bold text-slate-800">Browse Standard Curriculum</h3>
+                  <h3 className="text-xl md:text-2xl font-bold text-slate-800">Browse Standard Curriculum</h3>
                   <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-tighter border animate-in fade-in zoom-in duration-500 ${
                     globalDifficulty === 'Easy' ? 'bg-green-50 text-green-600 border-green-200' :
                     globalDifficulty === 'Medium' ? 'bg-blue-50 text-blue-600 border-blue-200' :
@@ -167,7 +232,7 @@ const App: React.FC = () => {
                       <button
                         key={level}
                         onClick={() => setGlobalDifficulty(level)}
-                        className={`px-6 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all duration-300 ${
+                        className={`px-4 md:px-6 py-2 rounded-xl text-[10px] md:text-[11px] font-black uppercase tracking-wider transition-all duration-300 ${
                           isActive ? activeStyle : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'
                         }`}
                       >
@@ -187,29 +252,10 @@ const App: React.FC = () => {
                   description={topic.description}
                   icon={topic.icon}
                   color={topic.color}
-                  onClick={() => handleStartPractice(topic.id as string)}
+                  onClick={() => handleTopicClick(topic.id as string)}
                 />
               ))}
             </div>
-          </section>
-
-          {/* Feature Highlights */}
-          <section className="grid grid-cols-1 md:grid-cols-3 gap-8 py-16 border-t border-slate-200">
-             <div className="flex flex-col gap-3">
-                <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center text-xl">✨</div>
-                <h4 className="font-bold text-slate-800">AI Deep-Dive</h4>
-                <p className="text-sm text-slate-500">Get instant reasoning for every wrong answer, powered by advanced pharmacy knowledge bases.</p>
-             </div>
-             <div className="flex flex-col gap-3">
-                <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center text-xl">📊</div>
-                <h4 className="font-bold text-slate-800">Real-time Analytics</h4>
-                <p className="text-sm text-slate-500">Track your mastery level per topic and identify gaps in your preparation before the big day.</p>
-             </div>
-             <div className="flex flex-col gap-3">
-                <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center text-xl">📱</div>
-                <h4 className="font-bold text-slate-800">Exam-Native Format</h4>
-                <p className="text-sm text-slate-500">Questions curated specifically to match the style of Indian government pharmacist exam boards.</p>
-             </div>
           </section>
         </main>
       )}
@@ -228,11 +274,25 @@ const App: React.FC = () => {
           questions={questions} 
           answers={answers} 
           onRestart={reset}
+          onRetake={handleRetake}
+          onCustomQuiz={() => setView('home')}
         />
       )}
 
-      {/* Footer */}
-      <footer className="mt-auto py-12 px-4 border-t border-slate-200 bg-white text-center">
+      {view === 'dashboard' && (
+        <PerformanceDashboard stats={stats} onClose={reset} />
+      )}
+
+      {showSetupModal && pendingTopicId && (
+        <QuizSetupModal 
+          topic={pendingTopicId}
+          difficulty={globalDifficulty}
+          onClose={() => setShowSetupModal(false)}
+          onStart={(count) => handleStartPractice(pendingTopicId, count)}
+        />
+      )}
+
+      <footer className="mt-auto py-12 px-6 border-t border-slate-200 bg-white text-center">
         <p className="text-slate-400 text-sm mb-2">Designed for Indian Pharmacy Professionals</p>
         <p className="text-slate-300 text-xs uppercase tracking-widest font-bold">© 2024 PharmaQuiz Pro • Powered by Gemini Flash</p>
       </footer>

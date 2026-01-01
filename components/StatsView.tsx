@@ -1,15 +1,17 @@
 
 import React from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { Question } from '../types';
 
 interface StatsViewProps {
   questions: Question[];
   answers: Record<string, number>;
   onRestart: () => void;
+  onRetake: () => void;
+  onCustomQuiz: () => void;
 }
 
-export const StatsView: React.FC<StatsViewProps> = ({ questions, answers, onRestart }) => {
+export const StatsView: React.FC<StatsViewProps> = ({ questions, answers, onRestart, onRetake, onCustomQuiz }) => {
   const correctCount = questions.reduce((acc, q) => (answers[q.id] === q.correctAnswer ? acc + 1 : acc), 0);
   const scorePercentage = Math.round((correctCount / questions.length) * 100);
 
@@ -87,6 +89,20 @@ export const StatsView: React.FC<StatsViewProps> = ({ questions, answers, onRest
         </div>
       </div>
 
+      <div className="bg-slate-900 rounded-[32px] p-8 text-white mb-12 shadow-2xl shadow-indigo-100 flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden">
+        <div className="relative z-10 max-w-md">
+          <h3 className="text-2xl font-bold mb-2">Target Your Weaknesses? 🪄</h3>
+          <p className="text-indigo-200 text-sm">Generate a customized session based on your results in {questions[0].topic} or any other specialty.</p>
+        </div>
+        <button
+          onClick={onCustomQuiz}
+          className="relative z-10 px-8 py-4 bg-white text-slate-900 rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-indigo-50 transition-all active:scale-95 shadow-xl"
+        >
+          Create Custom Quiz
+        </button>
+        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-[80px] -mr-32 -mt-32"></div>
+      </div>
+
       <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden mb-12">
         <div className="bg-slate-50 px-8 py-4 border-b border-slate-100">
           <h3 className="font-bold text-slate-800">Question Review</h3>
@@ -120,12 +136,18 @@ export const StatsView: React.FC<StatsViewProps> = ({ questions, answers, onRest
         </div>
       </div>
 
-      <div className="flex justify-center">
+      <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
         <button
           onClick={onRestart}
-          className="px-10 py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 hover:scale-105 active:scale-95"
+          className="w-full sm:w-auto px-10 py-4 bg-white text-slate-700 border border-slate-200 rounded-2xl font-bold hover:bg-slate-50 transition-all active:scale-95"
         >
           Back to Dashboard
+        </button>
+        <button
+          onClick={onRetake}
+          className="w-full sm:w-auto px-10 py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 active:scale-95 flex items-center justify-center gap-2"
+        >
+          🔄 Retake This Quiz
         </button>
       </div>
     </div>

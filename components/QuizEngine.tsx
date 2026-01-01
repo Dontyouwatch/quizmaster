@@ -83,7 +83,8 @@ export const QuizEngine: React.FC<QuizEngineProps> = ({ questions, onFinish, onC
              <span className="text-lg font-black text-blue-600">{currentIndex + 1}</span>
              <span className="text-xs text-slate-400 font-bold">/ {totalQuestions}</span>
           </div>
-          <div className="flex gap-0.5 mt-1">
+          {/* Slider/Progress Dots: Hidden on mobile and tablet, flex only on desktop (lg:flex) */}
+          <div className="hidden lg:flex gap-0.5 mt-1">
             {questions.map((q, idx) => (
               <div 
                 key={q.id} 
@@ -105,7 +106,8 @@ export const QuizEngine: React.FC<QuizEngineProps> = ({ questions, onFinish, onC
           </span>
         </div>
         
-        <h2 className="text-xl md:text-2xl font-extrabold text-slate-800 leading-[1.3] mb-8">
+        {/* Optimized Question Text for Mobile: smaller font (text-base), relaxed line-height, horizontal padding (px-2), and word-wrap (break-words) */}
+        <h2 className="text-base md:text-2xl font-extrabold text-slate-800 leading-relaxed md:leading-[1.3] mb-8 px-2 md:px-0 break-words">
           {currentQuestion.text}
         </h2>
 
@@ -146,27 +148,27 @@ export const QuizEngine: React.FC<QuizEngineProps> = ({ questions, onFinish, onC
 
         {showFeedback && (
           <div className="mt-8 space-y-6 animate-reveal">
-            {/* Equal Size Feedback & Navigation Row */}
-            <div className="flex flex-col sm:flex-row gap-3">
-              {/* Feedback Status Card */}
-              <div className={`flex-1 p-4 rounded-2xl flex items-center gap-4 ${isCorrect ? 'bg-green-500 text-white shadow-lg shadow-green-100' : 'bg-red-500 text-white shadow-lg shadow-red-100'}`}>
-                <span className="text-2xl shrink-0">{isCorrect ? '🎯' : '❌'}</span>
+            {/* Feedback & Navigation Row: Forces side-by-side layout on all screens */}
+            <div className="flex flex-row gap-2 sm:gap-3">
+              {/* Feedback Status Card - Compact on small screens */}
+              <div className={`flex-1 p-3 sm:p-4 rounded-2xl flex items-center gap-2 sm:gap-4 ${isCorrect ? 'bg-green-500 text-white shadow-lg shadow-green-100' : 'bg-red-500 text-white shadow-lg shadow-red-100'}`}>
+                <span className="text-xl sm:text-2xl shrink-0">{isCorrect ? '🎯' : '❌'}</span>
                 <div className="min-w-0">
-                  <p className="font-black text-[10px] uppercase tracking-widest opacity-80 leading-none mb-1">
-                    {isCorrect ? 'Correct Answer' : 'Learn the core concept'}
+                  <p className="font-black text-[8px] sm:text-[10px] uppercase tracking-widest opacity-80 leading-none mb-1 truncate">
+                    {isCorrect ? 'Correct Answer' : 'Incorrect Choice'}
                   </p>
-                  <p className="font-bold text-base truncate">
-                    {isCorrect ? 'Well Done!' : 'Incorrect Choice'}
+                  <p className="font-bold text-xs sm:text-base truncate">
+                    {isCorrect ? 'Well Done!' : 'Try Again'}
                   </p>
                 </div>
               </div>
               
-              {/* Next Button Card (Equal Size) */}
+              {/* Next Button Card (Equal Size) - Compact text on small screens */}
               <button
                 onClick={next}
-                className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 active:scale-[0.98] flex items-center justify-center"
+                className="flex-1 py-3 sm:py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-[0.1em] sm:tracking-[0.2em] hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 active:scale-[0.98] flex items-center justify-center"
               >
-                {isLast ? 'Finish Exam' : 'Next Question →'}
+                {isLast ? 'Finish' : 'Next →'}
               </button>
             </div>
 
