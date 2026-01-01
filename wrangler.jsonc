@@ -1,7 +1,0 @@
-{
-  "name": "quizmaster",                // must match your Worker name in Cloudflare dashboard
-  "compatibility_date": "2026-01-01",
-  "assets": {
-    "directory": "./dist"
-  }
-}

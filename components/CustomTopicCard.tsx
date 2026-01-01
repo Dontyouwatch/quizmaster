@@ -34,70 +34,78 @@ export const CustomTopicCard: React.FC<CustomTopicCardProps> = ({ onStart, isLoa
           </div>
           
           <form onSubmit={handleSubmit} className="w-full flex flex-col gap-6">
-            <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-4">
+            <div className="flex flex-col gap-4">
               <input
                 type="text"
                 value={input}
                 onFocus={() => setIsFocused(true)}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="e.g. Mechanism of Action of ACE Inhibitors..."
-                className="flex-1 w-full bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-5 py-4 text-white placeholder:text-indigo-200 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all shadow-inner"
+                className="w-full bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-5 py-4 text-white placeholder:text-indigo-200 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all shadow-inner"
                 required
               />
-              <button
-                type="submit"
-                disabled={isLoading || !input.trim()}
-                className="w-full lg:w-auto bg-white text-indigo-600 px-10 py-4 rounded-2xl font-black text-sm uppercase tracking-wider hover:bg-indigo-50 transition-all active:scale-95 disabled:opacity-50 shadow-lg shrink-0"
-              >
-                {isLoading ? 'Generating...' : 'Create MCQ'}
-              </button>
             </div>
 
             {(isFocused || input.length > 0) && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-reveal">
-                {/* Question Slider */}
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-indigo-200">Question Count</span>
-                    <span className="px-3 py-1 bg-white/10 rounded-lg text-xs font-bold text-white border border-white/10">
-                      You will attempt <span className="text-indigo-200">{count}</span> questions
-                    </span>
+              <div className="space-y-8 animate-reveal">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* Question Slider */}
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-indigo-200">Question Count</span>
+                      <span className="px-3 py-1 bg-white/10 rounded-lg text-xs font-bold text-white border border-white/10">
+                        You will attempt <span className="text-indigo-200">{count}</span> questions
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className="text-[10px] font-bold text-indigo-300">5</span>
+                      <input
+                        type="range"
+                        min="5"
+                        max="50"
+                        step="5"
+                        value={count}
+                        onChange={(e) => setCount(parseInt(e.target.value))}
+                        className="flex-1 h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-white hover:accent-indigo-100 transition-all"
+                      />
+                      <span className="text-[10px] font-bold text-indigo-300">50</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-[10px] font-bold text-indigo-300">5</span>
-                    <input
-                      type="range"
-                      min="5"
-                      max="50"
-                      step="5"
-                      value={count}
-                      onChange={(e) => setCount(parseInt(e.target.value))}
-                      className="flex-1 h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-white hover:accent-indigo-100 transition-all"
-                    />
-                    <span className="text-[10px] font-bold text-indigo-300">50</span>
+
+                  {/* Difficulty Selector */}
+                  <div className="flex flex-col gap-3">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-indigo-200">Select Difficulty</span>
+                    <div className="flex flex-wrap gap-2">
+                      {difficulties.map((level) => (
+                        <button
+                          key={level}
+                          type="button"
+                          onClick={() => setDifficulty(level)}
+                          className={`flex-1 px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
+                            difficulty === level 
+                              ? 'bg-white text-indigo-600 border-white shadow-md' 
+                              : 'bg-white/5 text-white border-white/20 hover:bg-white/10'
+                          }`}
+                        >
+                          {level}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
-                {/* Difficulty Selector */}
-                <div className="flex flex-col gap-3">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-indigo-200">Select Difficulty</span>
-                  <div className="flex flex-wrap gap-2">
-                    {difficulties.map((level) => (
-                      <button
-                        key={level}
-                        type="button"
-                        onClick={() => setDifficulty(level)}
-                        className={`flex-1 px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
-                          difficulty === level 
-                            ? 'bg-white text-indigo-600 border-white shadow-md' 
-                            : 'bg-white/5 text-white border-white/20 hover:bg-white/10'
-                        }`}
-                      >
-                        {level}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <button
+                  type="submit"
+                  disabled={isLoading || !input.trim()}
+                  className="w-full bg-white text-indigo-600 px-10 py-5 rounded-2xl font-black text-sm uppercase tracking-wider hover:bg-indigo-50 transition-all active:scale-95 disabled:opacity-50 shadow-lg flex items-center justify-center gap-2"
+                >
+                  {isLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+                      Generating...
+                    </>
+                  ) : 'Create MCQ Quiz'}
+                </button>
               </div>
             )}
           </form>
