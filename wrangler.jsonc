@@ -1,8 +1,9 @@
 {
   "name": "quiz-app-worker",
-  "main": "src/index.js",
+  "main": "src/index.tsx",
   "compatibility_date": "2026-01-01",
   "assets": {
     "directory": "./dist"
   }
 }
+
