@@ -20,6 +20,7 @@ const App: React.FC = () => {
   const [globalDifficulty, setGlobalDifficulty] = useState<Difficulty>('Medium');
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [pendingTopicId, setPendingTopicId] = useState<string | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const [stats, setStats] = useState<UserStats>(() => {
     const saved = localStorage.getItem('pharmaquiz_stats');
@@ -41,6 +42,7 @@ const App: React.FC = () => {
     setError(null);
     setSelectedTopic(topic);
     setShowSetupModal(false);
+    setIsMobileMenuOpen(false);
     try {
       const generated = await generateQuizQuestions(topic, count, difficulty);
       setQuestions(generated);
@@ -106,6 +108,7 @@ const App: React.FC = () => {
     setAnswers({});
     setShowSetupModal(false);
     setPendingTopicId(null);
+    setIsMobileMenuOpen(false);
   };
 
   if (loading) {
@@ -130,7 +133,7 @@ const App: React.FC = () => {
   const difficultyLevels: Difficulty[] = ['Easy', 'Medium', 'Hard'];
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20 overflow-x-hidden">
+    <div className="min-h-screen bg-slate-50 pb-20 overflow-x-hidden flex flex-col">
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-100 px-6 py-4 md:px-8">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2 cursor-pointer" onClick={reset}>
@@ -156,13 +159,53 @@ const App: React.FC = () => {
             >
               My Performance
             </button>
-            <button className="text-sm font-medium text-slate-400 cursor-not-allowed">Roadmap</button>
           </nav>
 
-          <button className="bg-slate-900 text-white px-4 md:px-5 py-2 md:py-2.5 rounded-full text-[10px] md:text-sm font-bold hover:bg-slate-800 transition-all shadow-lg active:scale-95">
-            Get Pro
-          </button>
+          <div className="flex items-center gap-4">
+            <a 
+              href="https://t.me/toolspire" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="bg-slate-900 text-white px-4 md:px-5 py-2 md:py-2.5 rounded-full text-[10px] md:text-sm font-bold hover:bg-slate-800 transition-all shadow-lg active:scale-95 flex items-center gap-2"
+            >
+              Join Us <span className="hidden sm:inline">→</span>
+            </a>
+
+            {/* Hamburger Toggle */}
+            <button 
+              className="md:hidden p-2 text-slate-600"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {isMobileMenuOpen ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
+                )}
+              </svg>
+            </button>
+          </div>
         </div>
+
+        {/* Mobile Menu Dropdown */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden pt-4 pb-2 border-t border-slate-100 mt-4 animate-reveal">
+            <div className="flex flex-col gap-2">
+              <button 
+                onClick={() => { setView('home'); setIsMobileMenuOpen(false); }}
+                className={`px-4 py-3 rounded-xl text-sm font-bold text-left transition-all ${view === 'home' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}
+              >
+                Practice Hub
+              </button>
+              <button 
+                onClick={() => { setView('dashboard'); setIsMobileMenuOpen(false); }}
+                className={`px-4 py-3 rounded-xl text-sm font-bold text-left transition-all ${view === 'dashboard' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}
+              >
+                My Performance
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
       {view === 'home' && (
@@ -179,7 +222,7 @@ const App: React.FC = () => {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
               </span>
-              Exam Season 2024 Prep Live
+              Exam Season 2026 Prep Live
             </div>
             <h2 className="text-3xl md:text-5xl font-black text-slate-900 mb-6 leading-tight break-words">
               Master your <span className="text-blue-600 underline decoration-blue-100 decoration-8 underline-offset-4">Pharmacist Exams</span> with AI
@@ -293,8 +336,23 @@ const App: React.FC = () => {
       )}
 
       <footer className="mt-auto py-12 px-6 border-t border-slate-200 bg-white text-center">
+        <div className="mb-6">
+          <a 
+            href="https://t.me/toolspire" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-2xl text-sm font-black transition-all"
+          >
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .33z"/>
+            </svg>
+            Join Us in Telegram →
+          </a>
+        </div>
         <p className="text-slate-400 text-sm mb-2">Designed for Indian Pharmacy Professionals</p>
-        <p className="text-slate-300 text-xs uppercase tracking-widest font-bold">© 2024 PharmaQuiz Pro • Powered by Gemini Flash</p>
+        <p className="text-slate-400 text-xs uppercase tracking-widest font-black">
+          © 2026 Tharun Kumar Mekala • PharmaQuiz Pro
+        </p>
       </footer>
     </div>
   );
