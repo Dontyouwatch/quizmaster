@@ -142,7 +142,7 @@ const App: React.FC = () => {
             </div>
             <div className="flex flex-col">
               <h1 className="text-sm md:text-lg font-black text-slate-800 leading-tight">PharmaQuiz <span className="text-blue-600">Pro</span></h1>
-              <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest">Aistudio Power</p>
+              <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-0.5">Aistudio Power</p>
             </div>
           </div>
           
@@ -173,8 +173,9 @@ const App: React.FC = () => {
 
             {/* Hamburger Toggle */}
             <button 
-              className="md:hidden p-2 text-slate-600"
+              className="md:hidden p-2 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              aria-label="Toggle Menu"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 {isMobileMenuOpen ? (
@@ -193,15 +194,15 @@ const App: React.FC = () => {
             <div className="flex flex-col gap-2">
               <button 
                 onClick={() => { setView('home'); setIsMobileMenuOpen(false); }}
-                className={`px-4 py-3 rounded-xl text-sm font-bold text-left transition-all ${view === 'home' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}
+                className={`px-4 py-3 rounded-xl text-sm font-bold text-left transition-all flex items-center gap-3 ${view === 'home' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}
               >
-                Practice Hub
+                <span className="text-lg">🎯</span> Practice Hub
               </button>
               <button 
                 onClick={() => { setView('dashboard'); setIsMobileMenuOpen(false); }}
-                className={`px-4 py-3 rounded-xl text-sm font-bold text-left transition-all ${view === 'dashboard' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}
+                className={`px-4 py-3 rounded-xl text-sm font-bold text-left transition-all flex items-center gap-3 ${view === 'dashboard' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}
               >
-                My Performance
+                <span className="text-lg">📊</span> My Performance
               </button>
             </div>
           </div>
@@ -341,7 +342,7 @@ const App: React.FC = () => {
             href="https://t.me/toolspire" 
             target="_blank" 
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-2xl text-sm font-black transition-all"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-2xl text-sm font-black transition-all shadow-sm"
           >
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .33z"/>
@@ -349,10 +350,13 @@ const App: React.FC = () => {
             Join Us in Telegram →
           </a>
         </div>
-        <p className="text-slate-400 text-sm mb-2">Designed for Indian Pharmacy Professionals</p>
-        <p className="text-slate-400 text-xs uppercase tracking-widest font-black">
-          © 2026 Tharun Kumar Mekala • PharmaQuiz Pro
-        </p>
+        <p className="text-slate-400 text-sm mb-4">Designed for Indian Pharmacy Professionals</p>
+        <div className="space-y-1">
+          <p className="text-slate-400 text-xs uppercase tracking-widest font-black">
+            © 2026 Tharun Kumar Mekala
+          </p>
+          <p className="text-slate-300 text-[10px] uppercase font-bold">PharmaQuiz Pro</p>
+        </div>
       </footer>
     </div>
   );

@@ -28,6 +28,14 @@ export async function generateQuizQuestions(topic: string, count: number = 15, d
     model: "gemini-3-flash-preview",
     contents: prompt,
     config: {
+      systemInstruction: `You are an elite Pharmaceutical Exam Expert specializing in Indian Government exams (ESIC, RRB, GPAT). 
+      
+      CRITICAL ACCURACY RULES:
+      1. FACT-CHECKING: Every question and answer MUST be fact-checked against authoritative sources like the Drugs and Cosmetics Act 1940, Pharmacy Act 1948, Indian Pharmacopoeia (IP), and standard textbooks (e.g., K.D. Tripathi for Pharmacology).
+      2. ZERO HALLUCINATION: If a specific legal clause or drug mechanism is not verified in your training data, do not guess. Only generate high-yield, verified content.
+      3. CORRECT INDEX VALIDATION: Ensure the 'correctAnswer' index is 100% accurate and corresponds exactly to the verified correct option.
+      4. INDEPENDENT VERITY: The question must be correct in the UI regardless of whether the user later views the "Deep Dive" explanation. The Deep Dive is an optional elaboration, not a corrective tool.
+      5. INDIAN CONTEXT: Ensure specific schedules (Schedule X, H, M, etc.) and forms (Form 20, 21, etc.) are strictly as per the latest Indian CDSCO/DCI regulations.`,
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.ARRAY,
@@ -42,7 +50,7 @@ export async function generateQuizQuestions(topic: string, count: number = 15, d
             },
             correctAnswer: { 
               type: Type.INTEGER, 
-              description: "Zero-based index (0-3)." 
+              description: "Zero-based index (0-3) that MUST be factually correct." 
             },
             explanation: { 
               type: Type.STRING, 
@@ -106,6 +114,7 @@ export async function getDetailedExplanation(question: string, selectedOption: s
     model: "gemini-3-flash-preview",
     contents: prompt,
     config: {
+      systemInstruction: "You are providing supplementary academic depth to a pre-validated question. Your goal is to provide clinical or legal context that helps a student understand the 'why' behind the correct answer.",
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
