@@ -114,7 +114,7 @@ export const StatsView: React.FC<StatsViewProps> = ({ questions, answers, onRest
                 <div className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${answers[q.id] === q.correctAnswer ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
                   {idx + 1}
                 </div>
-                <div>
+                <div className="flex-1">
                   <h4 className="text-lg font-medium text-slate-800 mb-2">{q.text}</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
                     {q.options.map((opt, oIdx) => (
@@ -126,9 +126,26 @@ export const StatsView: React.FC<StatsViewProps> = ({ questions, answers, onRest
                       </div>
                     ))}
                   </div>
-                  <div className="p-4 bg-slate-50 rounded-xl text-sm text-slate-600 leading-relaxed italic border-l-4 border-slate-300">
+                  <div className="p-4 bg-slate-50 rounded-xl text-sm text-slate-600 leading-relaxed italic border-l-4 border-slate-300 mb-4">
                     "{q.explanation}"
                   </div>
+                  
+                  {/* Sources in Review */}
+                  {q.sources && q.sources.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {q.sources.map((source, sIdx) => (
+                        <a 
+                          key={sIdx} 
+                          href={source.uri} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-[9px] font-bold text-blue-500 bg-blue-50 px-2 py-1 rounded transition-colors hover:bg-blue-100"
+                        >
+                          🔗 {source.title}
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

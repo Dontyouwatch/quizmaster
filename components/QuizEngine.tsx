@@ -83,7 +83,6 @@ export const QuizEngine: React.FC<QuizEngineProps> = ({ questions, onFinish, onC
              <span className="text-lg font-black text-blue-600">{currentIndex + 1}</span>
              <span className="text-xs text-slate-400 font-bold">/ {totalQuestions}</span>
           </div>
-          {/* Slider/Progress Dots: Hidden on mobile and tablet, flex only on desktop (lg:flex) */}
           <div className="hidden lg:flex gap-0.5 mt-1">
             {questions.map((q, idx) => (
               <div 
@@ -106,7 +105,6 @@ export const QuizEngine: React.FC<QuizEngineProps> = ({ questions, onFinish, onC
           </span>
         </div>
         
-        {/* Optimized Question Text for Mobile: smaller font (text-base), relaxed line-height, horizontal padding (px-2), and word-wrap (break-words) */}
         <h2 className="text-base md:text-2xl font-extrabold text-slate-800 leading-relaxed md:leading-[1.3] mb-8 px-2 md:px-0 break-words">
           {currentQuestion.text}
         </h2>
@@ -148,9 +146,7 @@ export const QuizEngine: React.FC<QuizEngineProps> = ({ questions, onFinish, onC
 
         {showFeedback && (
           <div className="mt-8 space-y-6 animate-reveal">
-            {/* Feedback & Navigation Row: Forces side-by-side layout on all screens */}
             <div className="flex flex-row gap-2 sm:gap-3">
-              {/* Feedback Status Card - Compact on small screens */}
               <div className={`flex-1 p-3 sm:p-4 rounded-2xl flex items-center gap-2 sm:gap-4 ${isCorrect ? 'bg-green-500 text-white shadow-lg shadow-green-100' : 'bg-red-500 text-white shadow-lg shadow-red-100'}`}>
                 <span className="text-xl sm:text-2xl shrink-0">{isCorrect ? '🎯' : '❌'}</span>
                 <div className="min-w-0">
@@ -163,7 +159,6 @@ export const QuizEngine: React.FC<QuizEngineProps> = ({ questions, onFinish, onC
                 </div>
               </div>
               
-              {/* Next Button Card (Equal Size) - Compact text on small screens */}
               <button
                 onClick={next}
                 className="flex-1 py-3 sm:py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-[0.1em] sm:tracking-[0.2em] hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 active:scale-[0.98] flex items-center justify-center"
@@ -172,7 +167,6 @@ export const QuizEngine: React.FC<QuizEngineProps> = ({ questions, onFinish, onC
               </button>
             </div>
 
-            {/* Immediate Explanations */}
             <div className="space-y-4">
               <div className="p-5 rounded-2xl bg-green-50 border border-green-100">
                 <div className="flex items-center gap-2 mb-2 font-black text-[10px] text-green-600 uppercase tracking-[0.2em]">
@@ -189,9 +183,31 @@ export const QuizEngine: React.FC<QuizEngineProps> = ({ questions, onFinish, onC
                   <p className="text-red-800 leading-relaxed font-medium text-sm">{currentQuestion.distractorRationale}</p>
                 </div>
               )}
+
+              {/* Verified Sources for Question */}
+              {currentQuestion.sources && currentQuestion.sources.length > 0 && (
+                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100">
+                  <div className="flex items-center gap-2 mb-3 font-black text-[10px] text-slate-500 uppercase tracking-[0.2em]">
+                    🌐 Verified Sources (Google Search)
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {currentQuestion.sources.map((source, sIdx) => (
+                      <a 
+                        key={sIdx} 
+                        href={source.uri} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-[10px] font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-1.5"
+                      >
+                        <span className="shrink-0">🔗</span>
+                        <span className="truncate max-w-[200px]">{source.title}</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* AI Deep Dive Trigger */}
             {!hasRequestedDetails && (
               <div className="flex justify-center">
                 <button
@@ -203,7 +219,6 @@ export const QuizEngine: React.FC<QuizEngineProps> = ({ questions, onFinish, onC
               </div>
             )}
 
-            {/* AI Deep Dive Content Section */}
             {hasRequestedDetails && (
               <div className="space-y-6">
                 {isLoadingAnalysis && (
@@ -226,6 +241,27 @@ export const QuizEngine: React.FC<QuizEngineProps> = ({ questions, onFinish, onC
                       dangerouslySetInnerHTML={{ __html: renderedAnalysis }}
                     />
 
+                    {/* Sources for AI Analysis */}
+                    {aiAnalysis.sources && aiAnalysis.sources.length > 0 && (
+                      <div className="mt-8 pt-6 border-t border-slate-800 relative z-10">
+                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400 mb-4">Verification Sources</p>
+                        <div className="flex flex-wrap gap-2">
+                          {aiAnalysis.sources.map((source, sIdx) => (
+                            <a 
+                              key={sIdx} 
+                              href={source.uri} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-[10px] font-bold text-slate-200 bg-white/10 px-3 py-1.5 rounded-lg hover:bg-white/20 transition-colors flex items-center gap-1.5"
+                            >
+                              <span>🔗</span>
+                              <span className="truncate max-w-[150px]">{source.title}</span>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {aiAnalysis.suggestions.length > 0 && (
                       <div className="mt-8 pt-6 border-t border-slate-800 relative z-10">
                         <p className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400 mb-4">Related Topics</p>
@@ -244,7 +280,6 @@ export const QuizEngine: React.FC<QuizEngineProps> = ({ questions, onFinish, onC
                       </div>
                     )}
                     
-                    {/* Secondary Next Button inside Deep Dive */}
                     <div className="mt-10 relative z-10">
                       <button
                         onClick={next}

@@ -18,9 +18,10 @@ export async function generateQuizQuestions(topic: string, count: number = 15, d
 
   Target Audience: Candidates for Indian Government Pharmacist Exams (RRB, ESIC, GPAT, State PSC).
   
-  Guidelines:
-  1. Content: Focus on drug classifications, mechanisms, side effects, legal acts (India), and clinical calculations.
-  2. Formatting: Use proper scientific names. 
+  Instructions:
+  1. Use Google Search to verify the latest regulations, drug schedules, and clinical facts.
+  2. Content: Focus on drug classifications, mechanisms, side effects, legal acts (India), and clinical calculations.
+  3. Formatting: Use proper scientific names. 
 
   Return the data in a structured JSON format.`;
 
@@ -28,38 +29,28 @@ export async function generateQuizQuestions(topic: string, count: number = 15, d
     model: "gemini-3-flash-preview",
     contents: prompt,
     config: {
-      systemInstruction: `You are an elite Pharmaceutical Exam Expert specializing in Indian Government exams (ESIC, RRB, GPAT). 
+      tools: [{ googleSearch: {} }],
+      systemInstruction: `You are an elite Pharmaceutical Exam Expert.
       
       CRITICAL ACCURACY RULES:
-      1. FACT-CHECKING: Every question and answer MUST be fact-checked against authoritative sources like the Drugs and Cosmetics Act 1940, Pharmacy Act 1948, Indian Pharmacopoeia (IP), and standard textbooks (e.g., K.D. Tripathi for Pharmacology).
-      2. ZERO HALLUCINATION: If a specific legal clause or drug mechanism is not verified in your training data, do not guess. Only generate high-yield, verified content.
-      3. CORRECT INDEX VALIDATION: Ensure the 'correctAnswer' index is 100% accurate and corresponds exactly to the verified correct option.
-      4. INDEPENDENT VERITY: The question must be correct in the UI regardless of whether the user later views the "Deep Dive" explanation. The Deep Dive is an optional elaboration, not a corrective tool.
-      5. INDIAN CONTEXT: Ensure specific schedules (Schedule X, H, M, etc.) and forms (Form 20, 21, etc.) are strictly as per the latest Indian CDSCO/DCI regulations.`,
+      1. SEARCH GROUNDING: You MUST use Google Search to verify every pharmaceutical fact, drug schedule (e.g., Schedule H, X, G), and Indian government regulation (Drugs and Cosmetics Act 1940) before providing the answer.
+      2. ZERO HALLUCINATION: Only provide verified, high-yield content.
+      3. CORRECT INDEX: Ensure the 'correctAnswer' index is 100% accurate.
+      4. INDIAN CONTEXT: Focus on Indian CDSCO/DCI regulations.`,
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.ARRAY,
         items: {
           type: Type.OBJECT,
           properties: {
-            text: { type: Type.STRING, description: "The MCQ question text." },
+            text: { type: Type.STRING },
             options: { 
               type: Type.ARRAY, 
-              items: { type: Type.STRING },
-              description: "Four distinct options (A-D)."
+              items: { type: Type.STRING }
             },
-            correctAnswer: { 
-              type: Type.INTEGER, 
-              description: "Zero-based index (0-3) that MUST be factually correct." 
-            },
-            explanation: { 
-              type: Type.STRING, 
-              description: "Brief professional explanation of the correct answer." 
-            },
-            distractorRationale: {
-              type: Type.STRING,
-              description: "Brief explanation of why the distractor options are incorrect or less appropriate."
-            }
+            correctAnswer: { type: Type.INTEGER },
+            explanation: { type: Type.STRING },
+            distractorRationale: { type: Type.STRING }
           },
           required: ["text", "options", "correctAnswer", "explanation", "distractorRationale"],
         }
@@ -67,12 +58,22 @@ export async function generateQuizQuestions(topic: string, count: number = 15, d
     }
   });
 
+  // Extract source links from grounding metadata
+  const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+  const sources = groundingChunks
+    .filter((chunk: any) => chunk.web)
+    .map((chunk: any) => ({
+      title: chunk.web.title || "Source",
+      uri: chunk.web.uri
+    }));
+
   try {
     const rawQuestions = JSON.parse(response.text);
     return rawQuestions.map((q: any, idx: number) => ({
       ...q,
       id: `q-${Date.now()}-${idx}`,
-      topic: topic
+      topic: topic,
+      sources: sources.length > 0 ? sources : undefined
     }));
   } catch (error) {
     console.error("Failed to parse Gemini response:", error);
@@ -83,6 +84,7 @@ export async function generateQuizQuestions(topic: string, count: number = 15, d
 export interface DeepDiveResponse {
   explanation: string;
   suggestions: string[];
+  sources?: { title: string; uri: string }[];
 }
 
 export async function getDetailedExplanation(question: string, selectedOption: string, correctOption: string): Promise<DeepDiveResponse> {
@@ -91,22 +93,8 @@ export async function getDetailedExplanation(question: string, selectedOption: s
   They chose "${selectedOption}" but the correct answer is "${correctOption}".
   
   Task:
-  1. Provide a "Deep Dive" explanation in MARKDOWN.
-  2. Suggest 1-2 highly specific related topics or questions the user might want to explore next.
-
-  Explanation Structure:
-  ### Deep Dive: [Concept Title]
-  [Intro paragraph summarizing the core concept]
-  
-  #### 1. The Key Differentiator
-  *   **[Correct Option Name]:** [Detailed Explanation]
-  *   **[Selected Option Name]:** [Why it differs]
-  
-  #### 2. Mechanism / Legal Framework
-  [A paragraph on foundation with bolding for receptors/acts.]
-  
-  #### 3. Verdict / Exam Tip
-  **Verdict:** [Clear summary]
+  1. Use Google Search to provide an accurate Deep Dive explanation in MARKDOWN.
+  2. Suggest 1-2 highly specific related topics.
 
   Return a JSON object.`;
 
@@ -114,16 +102,16 @@ export async function getDetailedExplanation(question: string, selectedOption: s
     model: "gemini-3-flash-preview",
     contents: prompt,
     config: {
-      systemInstruction: "You are providing supplementary academic depth to a pre-validated question. Your goal is to provide clinical or legal context that helps a student understand the 'why' behind the correct answer.",
+      tools: [{ googleSearch: {} }],
+      systemInstruction: "You are an academic expert providing depth to validated questions. Use Search Grounding to verify all clinical and legal claims.",
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
         properties: {
-          explanation: { type: Type.STRING, description: "The full markdown content." },
+          explanation: { type: Type.STRING },
           suggestions: { 
             type: Type.ARRAY, 
-            items: { type: Type.STRING },
-            description: "1-2 suggested topics/questions."
+            items: { type: Type.STRING }
           }
         },
         required: ["explanation", "suggestions"]
@@ -131,8 +119,20 @@ export async function getDetailedExplanation(question: string, selectedOption: s
     }
   });
 
+  const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+  const sources = groundingChunks
+    .filter((chunk: any) => chunk.web)
+    .map((chunk: any) => ({
+      title: chunk.web.title || "Source",
+      uri: chunk.web.uri
+    }));
+
   try {
-    return JSON.parse(response.text);
+    const result = JSON.parse(response.text);
+    return {
+      ...result,
+      sources: sources.length > 0 ? sources : undefined
+    };
   } catch (error) {
     console.error("Failed to parse Deep Dive response:", error);
     return {

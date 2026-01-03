@@ -7,6 +7,7 @@ export interface Question {
   explanation: string;
   distractorRationale: string; // Brief explanation of why other options are wrong
   topic: string;
+  sources?: { title: string; uri: string }[];
 }
 
 export interface QuizAttempt {
