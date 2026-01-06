@@ -21,6 +21,7 @@ const App: React.FC = () => {
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [pendingTopicId, setPendingTopicId] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [lastConfig, setLastConfig] = useState<{topic: string, count: number} | null>(null);
 
   const [stats, setStats] = useState<UserStats>(() => {
     const saved = localStorage.getItem('pharmaquiz_stats');
@@ -41,15 +42,20 @@ const App: React.FC = () => {
     setLoading(true);
     setError(null);
     setSelectedTopic(topic);
+    setLastConfig({ topic, count });
     setShowSetupModal(false);
     setIsMobileMenuOpen(false);
+    
     try {
       const generated = await generateQuizQuestions(topic, count, difficulty);
       setQuestions(generated);
       setView('quiz');
       setAnswers({});
-    } catch (err) {
-      setError("Failed to generate questions. The pharmacy lab is currently busy! Please try again.");
+    } catch (err: any) {
+      const isRateLimit = err?.message?.includes("429") || err?.status === 429;
+      setError(isRateLimit 
+        ? "The Pharmacy API is currently under heavy load. We've tried retrying several times, but it's still busy. Please wait a moment and try again."
+        : "Failed to generate questions. The laboratory is temporarily offline. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -109,6 +115,7 @@ const App: React.FC = () => {
     setShowSetupModal(false);
     setPendingTopicId(null);
     setIsMobileMenuOpen(false);
+    setError(null);
   };
 
   if (loading) {
@@ -119,12 +126,11 @@ const App: React.FC = () => {
           <div className="absolute inset-0 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
           <div className="absolute inset-0 flex items-center justify-center text-4xl">💊</div>
         </div>
-        <h2 className="text-2xl font-bold text-slate-800 mb-2">Preparing your practice session...</h2>
-        <p className="text-slate-500 max-w-sm">AI is formulating high-yield pharmacist questions for <strong>"{selectedTopic}"</strong>.</p>
-        <div className="mt-12 flex gap-3">
-           <div className="h-1.5 w-1.5 bg-blue-600 rounded-full animate-bounce [animation-delay:0s]"></div>
-           <div className="h-1.5 w-1.5 bg-blue-600 rounded-full animate-bounce [animation-delay:0.2s]"></div>
-           <div className="h-1.5 w-1.5 bg-blue-600 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+        <h2 className="text-2xl font-bold text-slate-800 mb-2">Compounding Your Quiz...</h2>
+        <p className="text-slate-500 max-w-sm">Our <strong>Gemini 2.5 Flash-Lite</strong> model is verifying clinical facts for "{selectedTopic}".</p>
+        <div className="mt-8 px-4 py-2 bg-slate-50 rounded-full border border-slate-100 flex items-center gap-2">
+           <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+           <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Grounding in Google Search</span>
         </div>
       </div>
     );
@@ -142,7 +148,7 @@ const App: React.FC = () => {
             </div>
             <div className="flex flex-col">
               <h1 className="text-sm md:text-lg font-black text-slate-800 leading-tight">PharmaQuiz <span className="text-blue-600">Pro</span></h1>
-              <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-0.5">Aistudio Power</p>
+              <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-0.5">Reliability Enhanced</p>
             </div>
           </div>
           
@@ -168,14 +174,12 @@ const App: React.FC = () => {
               rel="noopener noreferrer"
               className="bg-slate-900 text-white px-4 md:px-5 py-2 md:py-2.5 rounded-full text-[10px] md:text-sm font-bold hover:bg-slate-800 transition-all shadow-lg active:scale-95 flex items-center gap-2"
             >
-              Join Us <span className="hidden sm:inline">→</span>
+              Join Community
             </a>
 
-            {/* Hamburger Toggle */}
             <button 
               className="md:hidden p-2 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              aria-label="Toggle Menu"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 {isMobileMenuOpen ? (
@@ -187,59 +191,40 @@ const App: React.FC = () => {
             </button>
           </div>
         </div>
-
-        {/* Mobile Menu Dropdown */}
-        {isMobileMenuOpen && (
-          <div className="md:hidden pt-4 pb-2 border-t border-slate-100 mt-4 animate-reveal">
-            <div className="flex flex-col gap-2">
-              <button 
-                onClick={() => { setView('home'); setIsMobileMenuOpen(false); }}
-                className={`px-4 py-3 rounded-xl text-sm font-bold text-left transition-all flex items-center gap-3 ${view === 'home' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}
-              >
-                <span className="text-lg">🎯</span> Practice Hub
-              </button>
-              <button 
-                onClick={() => { setView('dashboard'); setIsMobileMenuOpen(false); }}
-                className={`px-4 py-3 rounded-xl text-sm font-bold text-left transition-all flex items-center gap-3 ${view === 'dashboard' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}
-              >
-                <span className="text-lg">📊</span> My Performance
-              </button>
-            </div>
-          </div>
-        )}
       </header>
 
       {view === 'home' && (
         <main className="max-w-7xl mx-auto px-6 md:px-8 pt-12">
           {error && (
-            <div className="mb-8 p-4 bg-red-50 border border-red-100 text-red-600 rounded-2xl text-sm flex items-center gap-3">
-              <span>⚠️</span> {error}
+            <div className="mb-10 p-6 bg-red-50 border-2 border-red-100 rounded-[24px] animate-reveal">
+              <div className="flex flex-col md:flex-row items-center gap-4">
+                <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-2xl shadow-sm shrink-0">⚠️</div>
+                <div className="flex-1 text-center md:text-left">
+                  <h4 className="font-black text-red-800 text-sm uppercase tracking-widest mb-1">Laboratory Busy</h4>
+                  <p className="text-red-600 text-sm leading-relaxed">{error}</p>
+                </div>
+                <button 
+                  onClick={() => lastConfig && handleStartPractice(lastConfig.topic, lastConfig.count)}
+                  className="px-6 py-2.5 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-red-100 active:scale-95"
+                >
+                  Retry Now
+                </button>
+              </div>
             </div>
           )}
 
           <section className="mb-16 text-center max-w-3xl mx-auto animate-reveal">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-wider mb-6">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-              </span>
-              Exam Season 2026 Prep Live
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-wider mb-6 border border-green-100">
+              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+              Enhanced Model: Gemini 2.5 Flash-Lite Active
             </div>
             <h2 className="text-3xl md:text-5xl font-black text-slate-900 mb-6 leading-tight break-words">
-              Master your <span className="text-blue-600 underline decoration-blue-100 decoration-8 underline-offset-4">Pharmacist Exams</span> with AI
+              Master your <span className="text-blue-600 underline decoration-blue-100 decoration-8 underline-offset-4">Pharmacist Exams</span>
             </h2>
             <p className="text-base md:text-lg text-slate-500 mb-10 leading-relaxed">
-              Targeted practice for ESIC, RRB, GPAT, and State PSC Government Exams. 
-              Our AI analyzes your performance to help you master complex clinical pharmacy.
+              Targeted practice for ESIC, RRB, GPAT, and State PSC. 
+              Our optimized AI system now provides faster, more reliable generation.
             </p>
-            
-            <div className="flex flex-wrap justify-center gap-2 md:gap-3 text-[10px] md:text-xs">
-              {EXAM_TARGETS.map(target => (
-                <span key={target} className="px-3 md:px-4 py-2 bg-white border border-slate-200 rounded-full text-slate-600 font-medium shadow-sm hover:border-blue-300 transition-colors cursor-default">
-                  #{target}
-                </span>
-              ))}
-            </div>
           </section>
 
           <section className="mb-12">
@@ -249,41 +234,24 @@ const App: React.FC = () => {
           <section className="mb-20">
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-6">
               <div className="space-y-1">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-xl md:text-2xl font-bold text-slate-800">Browse Standard Curriculum</h3>
-                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-tighter border animate-in fade-in zoom-in duration-500 ${
-                    globalDifficulty === 'Easy' ? 'bg-green-50 text-green-600 border-green-200' :
-                    globalDifficulty === 'Medium' ? 'bg-blue-50 text-blue-600 border-blue-200' :
-                    'bg-red-50 text-red-600 border-red-200'
-                  }`}>
-                    {globalDifficulty} MODE
-                  </span>
-                </div>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-800">Standard Curriculum</h3>
                 <p className="text-slate-500 text-sm">Select a primary subject to start practice.</p>
               </div>
               
               <div className="flex flex-col gap-2">
                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Set Difficulty</span>
                 <div className="flex bg-slate-200/50 p-1.5 rounded-2xl gap-1">
-                  {difficultyLevels.map((level) => {
-                    const isActive = globalDifficulty === level;
-                    let activeStyle = "";
-                    if (level === 'Easy') activeStyle = "bg-green-500 text-white shadow-lg shadow-green-200";
-                    if (level === 'Medium') activeStyle = "bg-blue-600 text-white shadow-lg shadow-blue-200";
-                    if (level === 'Hard') activeStyle = "bg-red-500 text-white shadow-lg shadow-red-200";
-
-                    return (
-                      <button
-                        key={level}
-                        onClick={() => setGlobalDifficulty(level)}
-                        className={`px-4 md:px-6 py-2 rounded-xl text-[10px] md:text-[11px] font-black uppercase tracking-wider transition-all duration-300 ${
-                          isActive ? activeStyle : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'
-                        }`}
-                      >
-                        {level}
-                      </button>
-                    );
-                  })}
+                  {difficultyLevels.map((level) => (
+                    <button
+                      key={level}
+                      onClick={() => setGlobalDifficulty(level)}
+                      className={`px-4 md:px-6 py-2 rounded-xl text-[10px] md:text-[11px] font-black uppercase tracking-wider transition-all duration-300 ${
+                        globalDifficulty === level ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'
+                      }`}
+                    >
+                      {level}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
@@ -335,29 +303,6 @@ const App: React.FC = () => {
           onStart={(count) => handleStartPractice(pendingTopicId, count)}
         />
       )}
-
-      <footer className="mt-auto py-12 px-6 border-t border-slate-200 bg-white text-center">
-        <div className="mb-6">
-          <a 
-            href="https://t.me/toolspire" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-2xl text-sm font-black transition-all shadow-sm"
-          >
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .33z"/>
-            </svg>
-            Join Us in Telegram →
-          </a>
-        </div>
-        <p className="text-slate-400 text-sm mb-4">Designed for Indian Pharmacy Professionals</p>
-        <div className="space-y-1">
-          <p className="text-slate-400 text-xs uppercase tracking-widest font-black">
-            © 2026 Tharun Kumar Mekala
-          </p>
-          <p className="text-slate-300 text-[10px] uppercase font-bold">PharmaQuiz Pro</p>
-        </div>
-      </footer>
     </div>
   );
 };
