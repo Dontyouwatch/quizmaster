@@ -26,7 +26,7 @@ const prompt = `Generate exactly ${count} professional multiple choice questions
  Return the data in a structured JSON format.`;
 
 const response = await ai.models.generateContent({
-model: "gemini-3-flash-preview",
+model: "gemini-2.5-flash-latest",
 contents: prompt,
 config: {
       tools: [{ googleSearch: {} }],
