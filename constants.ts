@@ -1,4 +1,3 @@
-
 import { ExamTopic } from './types';
 
 export const TOPICS_METADATA = [
@@ -29,6 +28,20 @@ export const TOPICS_METADATA = [
     description: "Clinical practice, distribution, and ICU pharmacy.",
     icon: "🏥",
     color: "bg-red-500"
+  },
+  {
+    id: "DSBM",
+    name: "DSBM",
+    description: "Drug Store and Business Management for Pharmacists.",
+    icon: "📈",
+    color: "bg-cyan-500"
+  },
+  {
+    id: "CommunityPharmacy",
+    name: "Community Pharmacy",
+    description: "Patient counseling and retail pharmacy management.",
+    icon: "🤝",
+    color: "bg-pink-500"
   },
   {
     id: ExamTopic.Pharmacognosy,

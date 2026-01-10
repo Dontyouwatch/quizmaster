@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { TOPICS_METADATA } from './constants';
 import { Question, Difficulty, UserStats, QuizAttempt } from './types';
@@ -174,7 +173,7 @@ const App: React.FC = () => {
               Ace the <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">Pharmacist Exam</span> with AI.
             </h2>
             <p className="text-xl text-slate-500 mb-12 leading-relaxed max-w-2xl mx-auto font-medium">
-              Precision practice for Indian Govt exams (DHS, RRB, GPAT). 
+              Precision practice for Indian Government Pharmacist exams (ESIC, RRB, GPAT, DHS). 
               Real-time clinical reasoning powered by Google Gemini.
             </p>
             
@@ -195,7 +194,7 @@ const App: React.FC = () => {
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-6">
               <div>
                 <h3 className="text-3xl font-black text-slate-900 tracking-tight">Core Specializations</h3>
-                <p className="text-slate-500 text-sm font-medium mt-1">High-yield modules based on previous year papers.</p>
+                <p className="text-slate-500 text-sm font-medium mt-1">High-yield modules based on previous year papers from ESIC, RRB, and State PSCs.</p>
               </div>
               <div className="flex bg-slate-200/50 p-1.5 rounded-[22px] gap-1.5 backdrop-blur-sm">
                 {(['Easy', 'Medium', 'Hard'] as Difficulty[]).map((level) => (
@@ -223,7 +222,6 @@ const App: React.FC = () => {
             </div>
           </section>
 
-          {/* Pharmacist Drug Highlight section */}
           <section className="mb-24 bg-white rounded-[40px] p-8 md:p-12 border border-slate-200 shadow-xl shadow-slate-200/50 flex flex-col md:flex-row items-center gap-12 overflow-hidden relative">
             <div className="flex-1 relative z-10">
               <span className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-600 mb-4 block">Drug Spotlight: India Formulary</span>
@@ -263,6 +261,19 @@ const App: React.FC = () => {
       {showSetupModal && pendingTopicId && (
         <QuizSetupModal topic={pendingTopicId} difficulty={globalDifficulty} onClose={() => setShowSetupModal(false)} onStart={(count) => handleStartPractice(pendingTopicId, count)} />
       )}
+      
+      <footer className="mt-auto py-10 px-6 border-t border-slate-200 bg-white">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="text-center md:text-left">
+            <p className="text-sm font-bold text-slate-800">PharmaQuiz Pro © 2025</p>
+            <p className="text-xs text-slate-400 font-medium mt-1">Dedicated to Indian Pharmacist Aspirants</p>
+          </div>
+          <div className="flex gap-6">
+            <a href="https://t.me/toolspire" target="_blank" className="text-xs font-black uppercase tracking-widest text-blue-600 hover:text-blue-700">Telegram Community</a>
+            <a href="#" className="text-xs font-black uppercase tracking-widest text-slate-400 hover:text-slate-600">Privacy Policy</a>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };
