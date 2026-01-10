@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { Question, Difficulty } from "../types";
 
 /**
@@ -24,16 +24,22 @@ const getViteKey = (name: string): string | undefined => {
   const env = (import.meta as any).env;
   
   // Explicitly mapping keys so Vite can see and replace them during build
-  if (name === 'VITE_GEMINI_API_KEY_1') return env.VITE_GEMINI_API_KEY_1;
-  if (name === 'VITE_GEMINI_API_KEY_2') return env.VITE_GEMINI_API_KEY_2;
-  if (name === 'VITE_API_KEY') return env.VITE_API_KEY;
+  let value: string | undefined;
+  
+  if (name === 'VITE_GEMINI_API_KEY_1') value = env.VITE_GEMINI_API_KEY_1;
+  else if (name === 'VITE_GEMINI_API_KEY_2') value = env.VITE_GEMINI_API_KEY_2;
+  else if (name === 'VITE_API_KEY') value = env.VITE_API_KEY;
   
   // Fallback to process.env for local development / other environments
-  try {
-    return (process.env as any)[name];
-  } catch (e) {
-    return undefined;
+  if (!value) {
+    try {
+      value = (process.env as any)[name];
+    } catch (e) {
+      value = undefined;
+    }
   }
+  
+  return value?.trim();
 };
 
 /**
@@ -58,16 +64,16 @@ const FALLBACK_STRATEGY: FallbackConfig[] = [
     displayLabel: 'API 2 → gemini-3' 
   },
   { 
-    model: 'gemini-flash-lite-latest', 
+    model: 'gemini-2.5-flash-lite-latest', 
     getApiKey: () => getViteKey('VITE_GEMINI_API_KEY_1'), 
     useSearch: true, 
-    displayLabel: 'API 1 → gemini-2.5-latest' 
+    displayLabel: 'API 1 → gemini-2.5-lite-latest' 
   },
   { 
     model: 'gemini-flash-lite-latest', 
     getApiKey: () => getViteKey('VITE_GEMINI_API_KEY_2'), 
     useSearch: true, 
-    displayLabel: 'API 2 → gemini-flash-latest' 
+    displayLabel: 'API 2 → gemini-flash-lite-latest' 
   },
   { 
     model: 'gemini-3-flash-preview', 
@@ -77,19 +83,45 @@ const FALLBACK_STRATEGY: FallbackConfig[] = [
   },
 ];
 
+/**
+ * Improved JSON extraction to handle model conversational filler
+ */
 function extractJSON(text: string): any {
+  if (!text) throw new Error("Received empty response from AI");
+  
+  const trimmedText = text.trim();
+  
+  // 1. Direct parse attempt
   try {
-    return JSON.parse(text);
+    return JSON.parse(trimmedText);
   } catch (e) {
-    const match = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    // 2. Try to find content between triple backticks
+    const match = trimmedText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
     if (match) {
       try {
-        return JSON.parse(match[1]);
-      } catch (innerE) {
-        throw new Error("JSON parse error");
-      }
+        return JSON.parse(match[1].trim());
+      } catch (innerE) {}
     }
-    throw new Error("No JSON found");
+    
+    // 3. Last ditch effort: find the first '[' or '{' and last ']' or '}'
+    const firstBracket = trimmedText.indexOf('[');
+    const lastBracket = trimmedText.lastIndexOf(']');
+    if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+      try {
+        return JSON.parse(trimmedText.substring(firstBracket, lastBracket + 1));
+      } catch (innerE) {}
+    }
+
+    const firstBrace = trimmedText.indexOf('{');
+    const lastBrace = trimmedText.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      try {
+        return JSON.parse(trimmedText.substring(firstBrace, lastBrace + 1));
+      } catch (innerE) {}
+    }
+    
+    console.error("Failed to parse AI response as JSON:", text);
+    throw new Error("Invalid format received from AI. Please try generating again.");
   }
 }
 
@@ -103,7 +135,8 @@ async function executeWithFallback<T>(
     const apiKey = config.getApiKey();
     
     if (!apiKey) {
-      console.debug(`[Fallback] Skipping ${config.displayLabel} - Key not found.`);
+      console.warn(`[Fallback] Tier ${attempts + 1} (${config.displayLabel}): API Key not found.`);
+      attempts++;
       continue;
     }
 
@@ -114,12 +147,21 @@ async function executeWithFallback<T>(
       const ai = new GoogleGenAI({ apiKey });
       return await executor(ai, config);
     } catch (error: any) {
-      console.warn(`[Fallback] ${taskLabel} failed on ${config.displayLabel}: ${error?.message}`);
-      // If it's a 404 or specific error, we definitely want to move to next
+      const status = error?.status || error?.code;
+      const message = error?.message || 'Unknown error';
+      
+      console.error(`[Fallback] ${taskLabel} failed on ${config.displayLabel}. Status: ${status}. Error: ${message}`);
+      
+      // If we're on the last attempt, don't sleep, just exit
+      if (attempts < FALLBACK_STRATEGY.length) {
+        // Small delay between retries to mitigate rate limits
+        await new Promise(resolve => setTimeout(resolve, 800));
+      }
       continue;
     }
   }
-  throw new Error("Service Congestion: All laboratory paths are busy. Ensure VITE_GEMINI_API_KEY_1 & VITE_GEMINI_API_KEY_2 are set in Cloudflare Settings and REDEPLOY your app.");
+  
+  throw new Error("Service Congestion: All laboratory paths are busy. Please verify your VITE_GEMINI_API_KEY_1 and VITE_GEMINI_API_KEY_2 are correctly set in Cloudflare and that you have triggered a new deployment after saving them.");
 }
 
 export async function generateQuizQuestions(
@@ -128,32 +170,50 @@ export async function generateQuizQuestions(
   difficulty: Difficulty = 'Medium',
   onStatusUpdate: (status: FallbackStatus) => void = () => {}
 ): Promise<Question[]> {
-  const prompt = `Generate ${count} MCQs for "${topic}" (${difficulty}). Indian Pharmacist Exam. JSON Array format: [{text, options:[4], correctAnswer:0-3, explanation, distractorRationale}]`;
+  const prompt = `Generate exactly ${count} Multiple Choice Questions (MCQs) for the topic: "${topic}" at ${difficulty} difficulty level. 
+Context: Indian Government Pharmacist Exams (ESIC, RRB, GPAT). 
+
+Return ONLY a JSON array of objects with this structure:
+[
+  {
+    "text": "Question text here",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "correctAnswer": 0,
+    "explanation": "Detailed scientific rationale",
+    "distractorRationale": "Why other options are incorrect"
+  }
+]`;
 
   return await executeWithFallback("Generate Quiz", onStatusUpdate, async (ai, config) => {
     const response = await ai.models.generateContent({
       model: config.model,
       contents: prompt,
       config: {
-        systemInstruction: "You are a fast Pharmacy MCQ Generator. Output ONLY JSON.",
+        systemInstruction: "You are an expert Indian Pharmacy Exam content generator. You provide high-quality, scientifically accurate MCQs in valid JSON format only.",
         tools: config.useSearch ? [{ googleSearch: {} }] : [],
         responseMimeType: "application/json",
         thinkingConfig: { thinkingBudget: 0 } 
       }
     });
 
-    const text = response.text;
-    if (!text) throw new Error("Empty response");
+    if (!response.candidates || response.candidates.length === 0) {
+      throw new Error("No response candidates returned from model");
+    }
 
+    const text = response.text;
     const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    const sources = groundingChunks
-      .filter((chunk: any) => chunk.web)
-      .map((chunk: any) => ({
-        title: chunk.web.title || "Reference",
+    const sources = (groundingChunks as any[])
+      .filter((chunk) => chunk.web)
+      .map((chunk) => ({
+        title: chunk.web.title || "Scientific Reference",
         uri: chunk.web.uri
       }));
 
     const rawQuestions = extractJSON(text);
+    if (!Array.isArray(rawQuestions)) {
+      throw new Error("AI returned an object instead of a list of questions.");
+    }
+
     return rawQuestions.map((q: any, idx: number) => ({
       ...q,
       id: `q-${Date.now()}-${idx}`,
@@ -175,7 +235,8 @@ export async function getDetailedExplanation(
   correctOption: string,
   onStatusUpdate: (status: FallbackStatus) => void = () => {}
 ): Promise<DeepDiveResponse> {
-  const prompt = `Compare "${correctOption}" vs "${selectedOption}" for: "${question}". JSON: {explanation: string, suggestions: string[]}`;
+  const prompt = `Provide a deep-dive pharmaceutical analysis comparing the correct answer "${correctOption}" with the selected answer "${selectedOption}" for the question: "${question}". 
+Return a JSON object: {"explanation": "detailed markdown string", "suggestions": ["Related Topic 1", "Related Topic 2"]}`;
 
   return await executeWithFallback("Deep Dive", onStatusUpdate, async (ai, config) => {
     const response = await ai.models.generateContent({
@@ -190,15 +251,15 @@ export async function getDetailedExplanation(
 
     const result = extractJSON(response.text);
     const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    const sources = groundingChunks
-      .filter((chunk: any) => chunk.web)
-      .map((chunk: any) => ({
-        title: chunk.web.title || "Source",
+    const sources = (groundingChunks as any[])
+      .filter((chunk) => chunk.web)
+      .map((chunk) => ({
+        title: chunk.web.title || "Scientific Verification",
         uri: chunk.web.uri
       }));
 
     return {
-      explanation: result.explanation || "Analysis loading...",
+      explanation: result.explanation || "Detailed analysis is unavailable at this moment.",
       suggestions: Array.isArray(result.suggestions) ? result.suggestions : [],
       sources: sources.length > 0 ? sources : undefined
     };
