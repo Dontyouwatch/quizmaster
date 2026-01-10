@@ -8,7 +8,7 @@ import { StatsView } from './components/StatsView';
 import { CustomTopicCard } from './components/CustomTopicCard';
 import { PerformanceDashboard } from './components/PerformanceDashboard';
 import { QuizSetupModal } from './components/QuizSetupModal';
-import { generateQuizQuestions } from './services/geminiService';
+import { generateQuizQuestions, FallbackStatus } from './services/geminiService';
 
 const App: React.FC = () => {
   const [view, setView] = useState<'home' | 'quiz' | 'stats' | 'dashboard'>('home');
@@ -16,6 +16,7 @@ const App: React.FC = () => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState<FallbackStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [globalDifficulty, setGlobalDifficulty] = useState<Difficulty>('Medium');
   const [showSetupModal, setShowSetupModal] = useState(false);
@@ -42,12 +43,15 @@ const App: React.FC = () => {
     setLoading(true);
     setError(null);
     setSelectedTopic(topic);
+    setLoadingStatus(null);
     setLastConfig({ topic, count, difficulty });
     setShowSetupModal(false);
     setIsMobileMenuOpen(false);
     
     try {
-      const generated = await generateQuizQuestions(topic, count, difficulty);
+      const generated = await generateQuizQuestions(topic, count, difficulty, (status) => {
+        setLoadingStatus(status);
+      });
       setQuestions(generated);
       setView('quiz');
       setAnswers({});
@@ -55,6 +59,7 @@ const App: React.FC = () => {
       setError(err?.message || "Failed to generate questions. The service is experiencing peak demand. Please try again.");
     } finally {
       setLoading(false);
+      setLoadingStatus(null);
     }
   };
 
@@ -113,26 +118,54 @@ const App: React.FC = () => {
     setPendingTopicId(null);
     setIsMobileMenuOpen(false);
     setError(null);
+    setLoadingStatus(null);
   };
 
   if (loading) {
     return (
       <div className="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center p-6 text-center">
-        <div className="relative w-24 h-24 mb-8">
-          <div className="absolute inset-0 border-4 border-blue-100 rounded-full"></div>
-          <div className="absolute inset-0 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
-          <div className="absolute inset-0 flex items-center justify-center text-4xl">💊</div>
+        <div className="relative w-20 h-20 mb-8">
+          <div className="absolute inset-0 border-[3px] border-blue-100 rounded-full"></div>
+          <div className="absolute inset-0 border-[3px] border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+          <div className="absolute inset-0 flex items-center justify-center text-3xl">🧬</div>
         </div>
-        <h2 className="text-2xl font-bold text-slate-800 mb-2">Compounding Your Quiz...</h2>
-        <p className="text-slate-500 max-w-sm mb-4">We are rotating through our high-availability Gemini models to prepare your session for "{selectedTopic}".</p>
-        <div className="flex flex-col items-center gap-3">
-          <div className="px-4 py-2 bg-blue-50 rounded-full border border-blue-100 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-            <span className="text-[10px] font-black uppercase text-blue-600 tracking-widest">Multi-Key Fallback Active</span>
-          </div>
-          <div className="px-4 py-2 bg-green-50 rounded-full border border-green-100 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-            <span className="text-[10px] font-black uppercase text-green-600 tracking-widest">Verifying clinical facts via Search</span>
+        
+        <div className="space-y-2 mb-10">
+          <h2 className="text-xl font-black text-slate-800 tracking-tight">Optimizing Laboratory Path...</h2>
+          <p className="text-slate-500 text-sm max-w-xs mx-auto">Compounding questions for <span className="text-blue-600 font-bold">{selectedTopic}</span></p>
+        </div>
+
+        <div className="w-full max-w-[280px] space-y-4">
+          {loadingStatus && (
+            <div className="p-5 bg-slate-900 rounded-[24px] border border-slate-800 shadow-2xl animate-reveal">
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-black uppercase text-blue-400 tracking-[0.2em]">Active Signal</span>
+                  <div className="flex gap-1">
+                    <span className="w-1 h-1 rounded-full bg-blue-500 animate-pulse"></span>
+                    <span className="w-1 h-1 rounded-full bg-blue-500 animate-pulse delay-75"></span>
+                    <span className="w-1 h-1 rounded-full bg-blue-500 animate-pulse delay-150"></span>
+                  </div>
+                </div>
+                <div className="py-2 px-3 bg-white/5 rounded-xl border border-white/10">
+                  <p className="text-[11px] font-mono font-black text-white text-center tracking-wide">
+                    {loadingStatus.label}
+                  </p>
+                </div>
+                <div className="flex items-center justify-center gap-2">
+                  <span className="text-[8px] font-bold text-slate-500 uppercase">Latency Optimization Active</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2">
+            <div className="px-4 py-2 bg-blue-50 rounded-full border border-blue-100 flex items-center justify-center gap-2">
+              <span className="text-[10px] font-black uppercase text-blue-600 tracking-widest">Multi-Tier High Availability</span>
+            </div>
+            <div className="px-4 py-2 bg-green-50 rounded-full border border-green-100 flex items-center justify-center gap-2">
+              <span className="text-[10px] font-black uppercase text-green-600 tracking-widest">Real-time Clinical Verification</span>
+            </div>
           </div>
         </div>
       </div>
@@ -151,7 +184,7 @@ const App: React.FC = () => {
             </div>
             <div className="flex flex-col">
               <h1 className="text-sm md:text-lg font-black text-slate-800 leading-tight">PharmaQuiz <span className="text-blue-600">Pro</span></h1>
-              <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-0.5">Zero-Downtime Engine</p>
+              <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-0.5">High Performance Engine</p>
             </div>
           </div>
           
@@ -219,14 +252,14 @@ const App: React.FC = () => {
           <section className="mb-16 text-center max-w-3xl mx-auto animate-reveal">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-wider mb-6 border border-green-100">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-              Enhanced System: Strict Key Rotation Active
+              Enhanced System: Strict Tiered Rotation Active
             </div>
             <h2 className="text-3xl md:text-5xl font-black text-slate-900 mb-6 leading-tight break-words">
               Master your <span className="text-blue-600 underline decoration-blue-100 decoration-8 underline-offset-4">Pharmacist Exams</span>
             </h2>
             <p className="text-base md:text-lg text-slate-500 mb-10 leading-relaxed">
               Precision practice for ESIC, RRB, GPAT, and State PSC. 
-              Our new multi-tier fallback architecture ensures the laboratory stays online even during peak hours.
+              Our new multi-tier architecture is optimized for low-latency generation and high reliability.
             </p>
           </section>
 
