@@ -58,13 +58,13 @@ const FALLBACK_STRATEGY: FallbackConfig[] = [
     displayLabel: 'API 2 → gemini-3' 
   },
   { 
-    model: 'gemini-2.5-flash-lite', 
+    model: 'gemini-flash-lite-latest', 
     getApiKey: () => getViteKey('VITE_GEMINI_API_KEY_1'), 
     useSearch: true, 
     displayLabel: 'API 1 → gemini-2.5-latest' 
   },
   { 
-    model: 'gemini-flash-lite', 
+    model: 'gemini-flash-lite-latest', 
     getApiKey: () => getViteKey('VITE_GEMINI_API_KEY_2'), 
     useSearch: true, 
     displayLabel: 'API 2 → gemini-flash-latest' 
