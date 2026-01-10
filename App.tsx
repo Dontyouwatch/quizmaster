@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+// Import React to ensure React.FC and other React namespaces are available
+import React, { useState, useEffect } from 'react';
 import { TOPICS_METADATA } from './constants';
 import { Question, Difficulty, UserStats, QuizAttempt } from './types';
 import { TopicCard } from './components/TopicCard';
@@ -20,7 +21,6 @@ const App: React.FC = () => {
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [pendingTopicId, setPendingTopicId] = useState<string | null>(null);
   const [lastConfig, setLastConfig] = useState<{topic: string, count: number, difficulty: Difficulty} | null>(null);
-  const [hasApiKey, setHasApiKey] = useState(true);
 
   const [stats, setStats] = useState<UserStats>(() => {
     const saved = localStorage.getItem('pharmaquiz_stats');
@@ -33,40 +33,9 @@ const App: React.FC = () => {
     };
   });
 
-  // Check for API Key on mount
-  useEffect(() => {
-    const checkKey = async () => {
-      try {
-        if (typeof (window as any).aistudio?.hasSelectedApiKey === 'function') {
-          const hasKey = await (window as any).aistudio.hasSelectedApiKey();
-          setHasApiKey(hasKey);
-        } else {
-          // Check for API_KEY in all common locations to match the service
-          const envApiKey = (typeof process !== 'undefined' && process.env?.API_KEY) || 
-                           (globalThis as any).process?.env?.API_KEY ||
-                           (globalThis as any).API_KEY;
-          setHasApiKey(!!envApiKey);
-        }
-      } catch (e) {
-        setHasApiKey(false);
-      }
-    };
-    checkKey();
-  }, []);
-
   useEffect(() => {
     localStorage.setItem('pharmaquiz_stats', JSON.stringify(stats));
   }, [stats]);
-
-  const handleOpenKeySelector = async () => {
-    if (typeof (window as any).aistudio?.openSelectKey === 'function') {
-      await (window as any).aistudio.openSelectKey();
-      setHasApiKey(true);
-      setError(null);
-    } else {
-      setError("API Key Selector is not available in this environment. Please ensure process.env.API_KEY is configured in your Cloudflare project settings.");
-    }
-  };
 
   const handleStartPractice = async (topic: string, count: number, difficulty: Difficulty = globalDifficulty) => {
     setLoading(true);
@@ -80,12 +49,8 @@ const App: React.FC = () => {
       setQuestions(generated);
       setView('quiz');
       setAnswers({});
-      setHasApiKey(true);
     } catch (err: any) {
       setError(err?.message || "Generation failed. Please check your connectivity and try again.");
-      if (err?.message?.includes("API configuration missing")) {
-        setHasApiKey(false);
-      }
     } finally {
       setLoading(false);
     }
@@ -174,14 +139,6 @@ const App: React.FC = () => {
           </nav>
 
           <div className="flex items-center gap-4">
-            {!hasApiKey && (
-              <button 
-                onClick={handleOpenKeySelector}
-                className="bg-amber-100 text-amber-700 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-amber-200 transition-all border border-amber-200 shadow-sm"
-              >
-                ⚠️ Configure API Key
-              </button>
-            )}
             <button 
               onClick={() => setView('dashboard')}
               className="bg-blue-50 text-blue-600 p-2.5 rounded-xl hover:bg-blue-100 transition-colors md:hidden"
@@ -205,9 +162,6 @@ const App: React.FC = () => {
                 <p className="text-red-700 text-sm font-medium">{error}</p>
               </div>
               <div className="flex gap-2">
-                {!hasApiKey && (
-                  <button onClick={handleOpenKeySelector} className="px-8 py-3 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg active:scale-95">Set Key</button>
-                )}
                 {lastConfig && (
                   <button onClick={() => handleStartPractice(lastConfig.topic, lastConfig.count)} className="px-8 py-3 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-red-100 active:scale-95">Retry Session</button>
                 )}
@@ -238,7 +192,7 @@ const App: React.FC = () => {
           </section>
 
           <section className="mb-16">
-            <CustomTopicCard onStart={handleStartPractice} isLoading={loading} />
+            <CustomTopicCard onStart Oak={handleStartPractice} isLoading={loading} />
           </section>
 
           <section className="mb-24">

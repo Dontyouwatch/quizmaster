@@ -12,35 +12,6 @@ export interface DeepDiveResponse {
 }
 
 /**
- * Safe retrieval of API Key from environment.
- * Adheres to the requirement of using process.env.API_KEY.
- */
-function getApiKey(): string | undefined {
-  // In many modern frontend environments (like Vite or Node-shimming environments),
-  // process.env might be available. We check all common locations for this specific key.
-  
-  // 1. Direct check for global process.env
-  // @ts-ignore
-  if (typeof process !== 'undefined' && process.env?.API_KEY) {
-    // @ts-ignore
-    return process.env.API_KEY;
-  }
-
-  // 2. Check for globalThis shim (used by some polyfills)
-  const globalObj = (globalThis as any);
-  if (globalObj.process?.env?.API_KEY) {
-    return globalObj.process.env.API_KEY;
-  }
-
-  // 3. Last resort: check if it was injected directly as a global (common in specialized runtimes)
-  if (globalObj.API_KEY) {
-    return globalObj.API_KEY;
-  }
-
-  return undefined;
-}
-
-/**
  * Generates quiz questions for a specific topic and difficulty.
  */
 export async function generateQuizQuestions(
@@ -48,9 +19,9 @@ export async function generateQuizQuestions(
   count: number = 15, 
   difficulty: Difficulty = 'Medium'
 ): Promise<Question[]> {
-  const apiKey = getApiKey();
+  const apiKey = process.env.API_KEY;
   if (!apiKey) {
-    throw new Error("API configuration missing. Please ensure process.env.API_KEY is set in your environment variables.");
+    throw new Error("API Key not found. Please ensure process.env.API_KEY is configured.");
   }
 
   const ai = new GoogleGenAI({ apiKey });
@@ -102,9 +73,9 @@ export async function getDetailedExplanation(
   selectedOption: string, 
   correctOption: string
 ): Promise<DeepDiveResponse> {
-  const apiKey = getApiKey();
+  const apiKey = process.env.API_KEY;
   if (!apiKey) {
-    throw new Error("API Key missing.");
+    throw new Error("API Key not found.");
   }
   
   const ai = new GoogleGenAI({ apiKey });
