@@ -40,6 +40,7 @@ export enum ExamTopic {
 }
 
 export type Difficulty = 'Easy' | 'Medium' | 'Hard';
+export type QuizMode = 'Practice' | 'Exam';
 
 export interface UserStats {
   totalAttempted: number;

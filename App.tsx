@@ -1,14 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
-import { TOPICS_METADATA, EXAM_TARGETS } from './constants';
-import { ExamTopic, Question, Difficulty, UserStats, QuizAttempt } from './types';
+import { TOPICS_METADATA } from './constants';
+import { Question, Difficulty, UserStats, QuizAttempt } from './types';
 import { TopicCard } from './components/TopicCard';
 import { QuizEngine } from './components/QuizEngine';
 import { StatsView } from './components/StatsView';
 import { CustomTopicCard } from './components/CustomTopicCard';
 import { PerformanceDashboard } from './components/PerformanceDashboard';
 import { QuizSetupModal } from './components/QuizSetupModal';
-import { generateQuizQuestions, FallbackStatus } from './services/geminiService';
+import { generateQuizQuestions } from './services/geminiService';
 
 const App: React.FC = () => {
   const [view, setView] = useState<'home' | 'quiz' | 'stats' | 'dashboard'>('home');
@@ -16,7 +16,6 @@ const App: React.FC = () => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
-  const [loadingStatus, setLoadingStatus] = useState<FallbackStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [globalDifficulty, setGlobalDifficulty] = useState<Difficulty>('Medium');
   const [showSetupModal, setShowSetupModal] = useState(false);
@@ -43,23 +42,19 @@ const App: React.FC = () => {
     setLoading(true);
     setError(null);
     setSelectedTopic(topic);
-    setLoadingStatus(null);
     setLastConfig({ topic, count, difficulty });
     setShowSetupModal(false);
     setIsMobileMenuOpen(false);
     
     try {
-      const generated = await generateQuizQuestions(topic, count, difficulty, (status) => {
-        setLoadingStatus(status);
-      });
+      const generated = await generateQuizQuestions(topic, count, difficulty);
       setQuestions(generated);
       setView('quiz');
       setAnswers({});
     } catch (err: any) {
-      setError(err?.message || "Failed to generate questions. The service is experiencing peak demand. Please try again.");
+      setError(err?.message || "Generation failed. Please check your API configuration and try again.");
     } finally {
       setLoading(false);
-      setLoadingStatus(null);
     }
   };
 
@@ -105,20 +100,13 @@ const App: React.FC = () => {
     setView('stats');
   };
 
-  const handleExploreRelated = (topic: string) => {
-    handleStartPractice(topic, 10, globalDifficulty);
-  };
-
   const reset = () => {
     setView('home');
     setSelectedTopic(null);
     setQuestions([]);
     setAnswers({});
     setShowSetupModal(false);
-    setPendingTopicId(null);
-    setIsMobileMenuOpen(false);
     setError(null);
-    setLoadingStatus(null);
   };
 
   if (loading) {
@@ -127,139 +115,61 @@ const App: React.FC = () => {
         <div className="relative w-20 h-20 mb-8">
           <div className="absolute inset-0 border-[3px] border-blue-100 rounded-full"></div>
           <div className="absolute inset-0 border-[3px] border-blue-600 rounded-full border-t-transparent animate-spin"></div>
-          <div className="absolute inset-0 flex items-center justify-center text-3xl">🧬</div>
+          <div className="absolute inset-0 flex items-center justify-center text-3xl">💊</div>
         </div>
-        
-        <div className="space-y-2 mb-10">
-          <h2 className="text-xl font-black text-slate-800 tracking-tight">Optimizing Laboratory Path...</h2>
-          <p className="text-slate-500 text-sm max-w-xs mx-auto">Compounding questions for <span className="text-blue-600 font-bold">{selectedTopic}</span></p>
-        </div>
-
-        <div className="w-full max-w-[280px] space-y-4">
-          {loadingStatus && (
-            <div className="p-5 bg-slate-900 rounded-[24px] border border-slate-800 shadow-2xl animate-reveal">
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-black uppercase text-blue-400 tracking-[0.2em]">Active Signal</span>
-                  <div className="flex gap-1">
-                    <span className="w-1 h-1 rounded-full bg-blue-500 animate-pulse"></span>
-                    <span className="w-1 h-1 rounded-full bg-blue-500 animate-pulse delay-75"></span>
-                    <span className="w-1 h-1 rounded-full bg-blue-500 animate-pulse delay-150"></span>
-                  </div>
-                </div>
-                <div className="py-2 px-3 bg-white/5 rounded-xl border border-white/10">
-                  <p className="text-[11px] font-mono font-black text-white text-center tracking-wide">
-                    {loadingStatus.label}
-                  </p>
-                </div>
-                <div className="flex items-center justify-center gap-2">
-                  <span className="text-[8px] font-bold text-slate-500 uppercase">Latency Optimization Active</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="flex flex-col gap-2">
-            <div className="px-4 py-2 bg-blue-50 rounded-full border border-blue-100 flex items-center justify-center gap-2">
-              <span className="text-[10px] font-black uppercase text-blue-600 tracking-widest">Multi-Tier High Availability</span>
-            </div>
-            <div className="px-4 py-2 bg-green-50 rounded-full border border-green-100 flex items-center justify-center gap-2">
-              <span className="text-[10px] font-black uppercase text-green-600 tracking-widest">Real-time Clinical Verification</span>
-            </div>
-          </div>
-        </div>
+        <h2 className="text-xl font-black text-slate-800 mb-2">Compounding Your Session...</h2>
+        <p className="text-slate-500 text-sm max-w-xs">Synthesizing high-yield questions for {selectedTopic}</p>
       </div>
     );
   }
 
-  const difficultyLevels: Difficulty[] = ['Easy', 'Medium', 'Hard'];
-
   return (
-    <div className="min-h-screen bg-slate-50 pb-20 overflow-x-hidden flex flex-col">
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-100 px-6 py-4 md:px-8">
+    <div className="min-h-screen bg-slate-50 pb-20 flex flex-col">
+      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-100 px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2 cursor-pointer" onClick={reset}>
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white text-xl shadow-lg shadow-blue-200">
-              💊
-            </div>
-            <div className="flex flex-col">
-              <h1 className="text-sm md:text-lg font-black text-slate-800 leading-tight">PharmaQuiz <span className="text-blue-600">Pro</span></h1>
-              <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-0.5">High Performance Engine</p>
+            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white text-xl shadow-lg">💊</div>
+            <div>
+              <h1 className="text-lg font-black text-slate-800 leading-tight">PharmaQuiz <span className="text-blue-600">Pro</span></h1>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Expert Exam Engine</p>
             </div>
           </div>
           
           <nav className="hidden md:flex gap-8">
-            <button 
-              onClick={() => setView('home')}
-              className={`text-sm font-medium transition-colors ${view === 'home' ? 'text-blue-600' : 'text-slate-600 hover:text-blue-600'}`}
-            >
-              Practice Hub
-            </button>
-            <button 
-              onClick={() => setView('dashboard')}
-              className={`text-sm font-medium transition-colors ${view === 'dashboard' ? 'text-blue-600' : 'text-slate-600 hover:text-blue-600'}`}
-            >
-              My Performance
-            </button>
+            <button onClick={() => setView('home')} className={`text-sm font-bold ${view === 'home' ? 'text-blue-600' : 'text-slate-500'}`}>Practice Hub</button>
+            <button onClick={() => setView('dashboard')} className={`text-sm font-bold ${view === 'dashboard' ? 'text-blue-600' : 'text-slate-500'}`}>My Progress</button>
           </nav>
 
-          <div className="flex items-center gap-4">
-            <a 
-              href="https://t.me/toolspire" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="bg-slate-900 text-white px-4 md:px-5 py-2 md:py-2.5 rounded-full text-[10px] md:text-sm font-bold hover:bg-slate-800 transition-all shadow-lg active:scale-95 flex items-center gap-2"
-            >
-              Join Community
-            </a>
-
-            <button 
-              className="md:hidden p-2 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors"
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                {isMobileMenuOpen ? (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                ) : (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
-                )}
-              </svg>
-            </button>
-          </div>
+          <a href="https://t.me/toolspire" target="_blank" className="hidden sm:flex bg-slate-900 text-white px-5 py-2.5 rounded-full text-sm font-bold shadow-lg items-center gap-2">
+            Join Telegram
+          </a>
         </div>
       </header>
 
       {view === 'home' && (
-        <main className="max-w-7xl mx-auto px-6 md:px-8 pt-12">
+        <main className="max-w-7xl mx-auto px-6 pt-12">
           {error && (
-            <div className="mb-10 p-6 bg-red-50 border-2 border-red-100 rounded-[24px] animate-reveal">
-              <div className="flex flex-col md:flex-row items-center gap-4">
-                <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-2xl shadow-sm shrink-0">⚠️</div>
-                <div className="flex-1 text-center md:text-left">
-                  <h4 className="font-black text-red-800 text-sm uppercase tracking-widest mb-1">Service Congestion</h4>
-                  <p className="text-red-600 text-sm leading-relaxed">{error}</p>
-                </div>
-                <button 
-                  onClick={() => lastConfig && handleStartPractice(lastConfig.topic, lastConfig.count, lastConfig.difficulty)}
-                  className="px-6 py-2.5 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-red-100 active:scale-95"
-                >
-                  Force Retry
-                </button>
+            <div className="mb-10 p-6 bg-red-50 border-2 border-red-100 rounded-3xl animate-reveal flex flex-col md:flex-row items-center gap-4">
+              <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-2xl shrink-0">⚠️</div>
+              <div className="flex-1 text-center md:text-left">
+                <h4 className="font-black text-red-800 text-sm uppercase mb-1">Service Alert</h4>
+                <p className="text-red-600 text-sm">{error}</p>
               </div>
+              <button onClick={() => lastConfig && handleStartPractice(lastConfig.topic, lastConfig.count)} className="px-6 py-2 bg-red-600 text-white rounded-xl text-xs font-black uppercase">Retry</button>
             </div>
           )}
 
-          <section className="mb-16 text-center max-w-3xl mx-auto animate-reveal">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-wider mb-6 border border-green-100">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-              Enhanced System: Strict Tiered Rotation Active
+          <section className="mb-16 text-center max-w-3xl mx-auto">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-full text-xs font-bold uppercase tracking-wider mb-6">
+              <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+              2025 ESIC/RRB Syllabus Updated
             </div>
-            <h2 className="text-3xl md:text-5xl font-black text-slate-900 mb-6 leading-tight break-words">
-              Master your <span className="text-blue-600 underline decoration-blue-100 decoration-8 underline-offset-4">Pharmacist Exams</span>
+            <h2 className="text-4xl md:text-6xl font-black text-slate-900 mb-6 tracking-tight">
+              Master Your <span className="text-blue-600">Pharmacist Exams</span>
             </h2>
-            <p className="text-base md:text-lg text-slate-500 mb-10 leading-relaxed">
-              Precision practice for ESIC, RRB, GPAT, and State PSC. 
-              Our new multi-tier architecture is optimized for low-latency generation and high reliability.
+            <p className="text-lg text-slate-500 mb-10 leading-relaxed">
+              Precision MCQ practice with real-time AI reasoning. 
+              Built for Indian Govt Exam Aspirants (DHS, RRB, GPAT, NHM).
             </p>
           </section>
 
@@ -268,31 +178,24 @@ const App: React.FC = () => {
           </section>
 
           <section className="mb-20">
-            <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-6">
-              <div className="space-y-1">
-                <h3 className="text-xl md:text-2xl font-bold text-slate-800">Standard Curriculum</h3>
-                <p className="text-slate-500 text-sm">Select a primary subject to start practice.</p>
+            <div className="flex items-end justify-between mb-8">
+              <div>
+                <h3 className="text-2xl font-bold text-slate-800">Topic Specialties</h3>
+                <p className="text-slate-500 text-sm">Focused drills on core pharmacy curriculum.</p>
               </div>
-              
-              <div className="flex flex-col gap-2">
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Set Difficulty</span>
-                <div className="flex bg-slate-200/50 p-1.5 rounded-2xl gap-1">
-                  {difficultyLevels.map((level) => (
-                    <button
-                      key={level}
-                      onClick={() => setGlobalDifficulty(level)}
-                      className={`px-4 md:px-6 py-2 rounded-xl text-[10px] md:text-[11px] font-black uppercase tracking-wider transition-all duration-300 ${
-                        globalDifficulty === level ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'
-                      }`}
-                    >
-                      {level}
-                    </button>
-                  ))}
-                </div>
+              <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1">
+                {(['Easy', 'Medium', 'Hard'] as Difficulty[]).map((level) => (
+                  <button
+                    key={level}
+                    onClick={() => setGlobalDifficulty(level)}
+                    className={`px-6 py-2 rounded-xl text-xs font-black uppercase transition-all ${globalDifficulty === level ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400'}`}
+                  >
+                    {level}
+                  </button>
+                ))}
               </div>
             </div>
-            
-            <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
               {TOPICS_METADATA.map((topic) => (
                 <TopicCard
                   key={topic.id}
@@ -309,22 +212,12 @@ const App: React.FC = () => {
       )}
 
       {view === 'quiz' && (
-        <QuizEngine 
-          questions={questions} 
-          onFinish={handleFinishQuiz}
-          onCancel={reset}
-          onExploreRelated={handleExploreRelated}
-        />
+        /* Fix: Use a wrapper to provide the required 'count' argument to handleStartPractice and match (topic: string) => void */
+        <QuizEngine questions={questions} onFinish={handleFinishQuiz} onCancel={reset} onExploreRelated={(topic) => handleStartPractice(topic, 10)} />
       )}
 
       {view === 'stats' && (
-        <StatsView 
-          questions={questions} 
-          answers={answers} 
-          onRestart={reset}
-          onRetake={handleRetake}
-          onCustomQuiz={() => setView('home')}
-        />
+        <StatsView questions={questions} answers={answers} onRestart={reset} onRetake={handleRetake} onCustomQuiz={() => setView('home')} />
       )}
 
       {view === 'dashboard' && (
@@ -332,12 +225,7 @@ const App: React.FC = () => {
       )}
 
       {showSetupModal && pendingTopicId && (
-        <QuizSetupModal 
-          topic={pendingTopicId}
-          difficulty={globalDifficulty}
-          onClose={() => setShowSetupModal(false)}
-          onStart={(count) => handleStartPractice(pendingTopicId, count)}
-        />
+        <QuizSetupModal topic={pendingTopicId} difficulty={globalDifficulty} onClose={() => setShowSetupModal(false)} onStart={(count) => handleStartPractice(pendingTopicId, count)} />
       )}
     </div>
   );
