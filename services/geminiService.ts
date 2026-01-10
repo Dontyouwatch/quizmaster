@@ -13,24 +13,30 @@ export interface DeepDiveResponse {
 
 /**
  * Safe retrieval of API Key from environment.
- * Prioritizes process.env.API_KEY as per guidelines but handles undefined 'process' object.
+ * Adheres to the requirement of using process.env.API_KEY.
  */
 function getApiKey(): string | undefined {
-  try {
-    // Attempt standard process.env check
+  // In many modern frontend environments (like Vite or Node-shimming environments),
+  // process.env might be available. We check all common locations for this specific key.
+  
+  // 1. Direct check for global process.env
+  // @ts-ignore
+  if (typeof process !== 'undefined' && process.env?.API_KEY) {
     // @ts-ignore
-    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-      // @ts-ignore
-      return process.env.API_KEY;
-    }
-    // Attempt globalThis shim if process is injected elsewhere
-    const globalProcess = (globalThis as any).process;
-    if (globalProcess?.env?.API_KEY) {
-      return globalProcess.env.API_KEY;
-    }
-  } catch (e) {
-    // Silent catch for restricted environments
+    return process.env.API_KEY;
   }
+
+  // 2. Check for globalThis shim (used by some polyfills)
+  const globalObj = (globalThis as any);
+  if (globalObj.process?.env?.API_KEY) {
+    return globalObj.process.env.API_KEY;
+  }
+
+  // 3. Last resort: check if it was injected directly as a global (common in specialized runtimes)
+  if (globalObj.API_KEY) {
+    return globalObj.API_KEY;
+  }
+
   return undefined;
 }
 
@@ -44,10 +50,9 @@ export async function generateQuizQuestions(
 ): Promise<Question[]> {
   const apiKey = getApiKey();
   if (!apiKey) {
-    throw new Error("API configuration missing. Please ensure API_KEY is set in your environment (e.g., Cloudflare Secrets) or select a key using the button in the header.");
+    throw new Error("API configuration missing. Please ensure process.env.API_KEY is set in your environment variables.");
   }
 
-  // Always create instance right before call to ensure we have the latest key
   const ai = new GoogleGenAI({ apiKey });
   const model = 'gemini-3-pro-preview'; 
   

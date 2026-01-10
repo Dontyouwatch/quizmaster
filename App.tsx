@@ -37,13 +37,14 @@ const App: React.FC = () => {
   useEffect(() => {
     const checkKey = async () => {
       try {
-        // Check if window.aistudio is available (common in these specialized environments)
         if (typeof (window as any).aistudio?.hasSelectedApiKey === 'function') {
           const hasKey = await (window as any).aistudio.hasSelectedApiKey();
           setHasApiKey(hasKey);
         } else {
-          // Fallback for standard environments: check process.env or global shim safely
-          const envApiKey = (typeof process !== 'undefined' && process.env?.API_KEY) || (globalThis as any).process?.env?.API_KEY;
+          // Check for API_KEY in all common locations to match the service
+          const envApiKey = (typeof process !== 'undefined' && process.env?.API_KEY) || 
+                           (globalThis as any).process?.env?.API_KEY ||
+                           (globalThis as any).API_KEY;
           setHasApiKey(!!envApiKey);
         }
       } catch (e) {
@@ -60,20 +61,14 @@ const App: React.FC = () => {
   const handleOpenKeySelector = async () => {
     if (typeof (window as any).aistudio?.openSelectKey === 'function') {
       await (window as any).aistudio.openSelectKey();
-      // Assume success as per race condition guidelines
       setHasApiKey(true);
       setError(null);
     } else {
-      setError("API Key Selector is not available in this environment. Please set API_KEY in your Cloudflare settings.");
+      setError("API Key Selector is not available in this environment. Please ensure process.env.API_KEY is configured in your Cloudflare project settings.");
     }
   };
 
   const handleStartPractice = async (topic: string, count: number, difficulty: Difficulty = globalDifficulty) => {
-    if (!hasApiKey) {
-      setError("Please select an API Key first to enable AI question generation.");
-      return;
-    }
-
     setLoading(true);
     setError(null);
     setSelectedTopic(topic);
@@ -85,9 +80,9 @@ const App: React.FC = () => {
       setQuestions(generated);
       setView('quiz');
       setAnswers({});
+      setHasApiKey(true);
     } catch (err: any) {
       setError(err?.message || "Generation failed. Please check your connectivity and try again.");
-      // If the error specifically looks like a missing key error from the service
       if (err?.message?.includes("API configuration missing")) {
         setHasApiKey(false);
       }
@@ -184,7 +179,7 @@ const App: React.FC = () => {
                 onClick={handleOpenKeySelector}
                 className="bg-amber-100 text-amber-700 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-amber-200 transition-all border border-amber-200 shadow-sm"
               >
-                ⚠️ Select API Key
+                ⚠️ Configure API Key
               </button>
             )}
             <button 
@@ -211,9 +206,9 @@ const App: React.FC = () => {
               </div>
               <div className="flex gap-2">
                 {!hasApiKey && (
-                  <button onClick={handleOpenKeySelector} className="px-8 py-3 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg active:scale-95">Select Key</button>
+                  <button onClick={handleOpenKeySelector} className="px-8 py-3 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg active:scale-95">Set Key</button>
                 )}
-                {lastConfig && hasApiKey && (
+                {lastConfig && (
                   <button onClick={() => handleStartPractice(lastConfig.topic, lastConfig.count)} className="px-8 py-3 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-red-100 active:scale-95">Retry Session</button>
                 )}
               </div>
