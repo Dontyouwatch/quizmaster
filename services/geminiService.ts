@@ -17,7 +17,7 @@ export interface FallbackStatus {
 }
 
 /**
- * Strict fallback order as requested:
+ * Strict fallback order as requested (Updated for Vite/Cloudflare prefixing):
  * 1. API 1 → gemini-3
  * 2. API 2 → gemini-3
  * 3. API 1 → gemini-2.5-latest
@@ -27,54 +27,53 @@ export interface FallbackStatus {
 const FALLBACK_STRATEGY: FallbackConfig[] = [
   { 
     model: 'gemini-3-flash-preview', 
-    apiKeyEnv: 'GEMINI_API_KEY_1', 
+    apiKeyEnv: 'VITE_GEMINI_API_KEY_1', 
     useSearch: true, 
     displayLabel: 'API 1 → gemini-3' 
   },
   { 
     model: 'gemini-3-flash-preview', 
-    apiKeyEnv: 'GEMINI_API_KEY_2', 
+    apiKeyEnv: 'VITE_GEMINI_API_KEY_2', 
     useSearch: true, 
     displayLabel: 'API 2 → gemini-3' 
   },
   { 
     model: 'gemini-2.5-flash-lite-latest', 
-    apiKeyEnv: 'GEMINI_API_KEY_1', 
+    apiKeyEnv: 'VITE_GEMINI_API_KEY_1', 
     useSearch: true, 
     displayLabel: 'API 1 → gemini-2.5-latest' 
   },
   { 
     model: 'gemini-flash-lite-latest', 
-    apiKeyEnv: 'GEMINI_API_KEY_2', 
+    apiKeyEnv: 'VITE_GEMINI_API_KEY_2', 
     useSearch: true, 
     displayLabel: 'API 2 → gemini-flash-latest' 
   },
   { 
     model: 'gemini-3-flash-preview', 
-    apiKeyEnv: 'API_KEY', 
+    apiKeyEnv: 'VITE_API_KEY', 
     useSearch: false, 
     displayLabel: 'API 1 → Gemini fast' 
   },
 ];
 
 /**
- * Enhanced Env Access: Cloudflare and Vite often require different access patterns.
- * We prioritize process.env but fall back to checking if the key is available globally.
+ * In Vite/Cloudflare, variables must be prefixed with VITE_ to be accessible via import.meta.env
  */
 function getEnvKey(keyName: string): string | undefined {
+  // Use import.meta.env for Vite production builds
+  const env = (import.meta as any).env;
+  if (env && env[keyName]) {
+    return env[keyName];
+  }
+  
+  // Fallback for different build environments
   try {
-    // 1. Standard process.env check
     if (typeof process !== 'undefined' && process.env && (process.env as any)[keyName]) {
       return (process.env as any)[keyName];
     }
-    // 2. Vite specific import.meta.env check
-    const metaEnv = (import.meta as any).env;
-    if (metaEnv && metaEnv[keyName]) {
-      return metaEnv[keyName];
-    }
-  } catch (e) {
-    // Fallback if environment access throws
-  }
+  } catch (e) {}
+  
   return undefined;
 }
 
@@ -103,11 +102,8 @@ async function executeWithFallback<T>(
   for (const config of FALLBACK_STRATEGY) {
     const apiKey = getEnvKey(config.apiKeyEnv);
     
-    // If specific key isn't found, try the primary API_KEY as a last resort for this tier
-    const finalKey = apiKey || getEnvKey('API_KEY');
-
-    if (!finalKey) {
-      console.debug(`[Fallback] Skipping ${config.displayLabel} - No Key Found.`);
+    if (!apiKey) {
+      console.debug(`[Fallback] Skipping ${config.displayLabel} - Key ${config.apiKeyEnv} not found in environment.`);
       continue;
     }
 
@@ -115,15 +111,14 @@ async function executeWithFallback<T>(
     onStatusUpdate({ label: config.displayLabel });
 
     try {
-      const ai = new GoogleGenAI({ apiKey: finalKey });
+      const ai = new GoogleGenAI({ apiKey });
       return await executor(ai, config);
     } catch (error: any) {
       console.warn(`[Fallback] ${taskLabel} attempt ${attempts} failed (${config.displayLabel}). Error: ${error?.message}`);
-      // Continue to next configuration
       continue;
     }
   }
-  throw new Error("Service Congestion: All laboratory paths are busy. Please check your API keys or try again in 60 seconds.");
+  throw new Error("Service Congestion: All laboratory paths are busy. Please ensure your environment variables (VITE_GEMINI_API_KEY_1, etc.) are set correctly in Cloudflare.");
 }
 
 export async function generateQuizQuestions(
@@ -132,18 +127,18 @@ export async function generateQuizQuestions(
   difficulty: Difficulty = 'Medium',
   onStatusUpdate: (status: FallbackStatus) => void = () => {}
 ): Promise<Question[]> {
-  // ULTRA-MINIMAL PROMPT for max speed
-  const prompt = `Return ${count} MCQs for "${topic}" (${difficulty}). Indian Pharmacist Exam context. JSON: Array<{text, options:[4], correctAnswer:0-3, explanation, distractorRationale}>.`;
+  // Ultra-concise prompt to minimize token generation time
+  const prompt = `Generate ${count} MCQs for "${topic}" (Level: ${difficulty}). Context: India Pharmacist. JSON Array format: [{text, options:[4], correctAnswer:0-3, explanation, distractorRationale}]`;
 
   return await executeWithFallback("Generate Quiz", onStatusUpdate, async (ai, config) => {
     const response = await ai.models.generateContent({
       model: config.model,
       contents: prompt,
       config: {
-        systemInstruction: "Fast Indian Pharmacy MCQ Generator. Strict JSON.",
+        systemInstruction: "You are a fast Pharmacy MCQ Generator. Output ONLY JSON.",
         tools: config.useSearch ? [{ googleSearch: {} }] : [],
         responseMimeType: "application/json",
-        thinkingConfig: { thinkingBudget: 0 } // Disable thinking for speed
+        thinkingConfig: { thinkingBudget: 0 } 
       }
     });
 
@@ -180,7 +175,7 @@ export async function getDetailedExplanation(
   correctOption: string,
   onStatusUpdate: (status: FallbackStatus) => void = () => {}
 ): Promise<DeepDiveResponse> {
-  const prompt = `Explain why "${correctOption}" is right and "${selectedOption}" is wrong for: "${question}". JSON: {explanation: string, suggestions: string[]}`;
+  const prompt = `Compare "${correctOption}" vs "${selectedOption}" for question: "${question}". JSON: {explanation: string, suggestions: string[]}`;
 
   return await executeWithFallback("Deep Dive", onStatusUpdate, async (ai, config) => {
     const response = await ai.models.generateContent({
@@ -198,12 +193,12 @@ export async function getDetailedExplanation(
     const sources = groundingChunks
       .filter((chunk: any) => chunk.web)
       .map((chunk: any) => ({
-        title: chunk.web.title || "Scientific Proof",
+        title: chunk.web.title || "Source",
         uri: chunk.web.uri
       }));
 
     return {
-      explanation: result.explanation || "Detailed analysis is loading...",
+      explanation: result.explanation || "Analysis loading...",
       suggestions: Array.isArray(result.suggestions) ? result.suggestions : [],
       sources: sources.length > 0 ? sources : undefined
     };
