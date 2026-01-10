@@ -17,12 +17,12 @@ export interface FallbackStatus {
 }
 
 /**
- * Strict fallback order:
+ * Strict fallback order as requested:
  * 1. API 1 → gemini-3
  * 2. API 2 → gemini-3
  * 3. API 1 → gemini-2.5-latest
  * 4. API 2 → gemini-flash-latest
- * 5. API 1 → Gemini fast (System)
+ * 5. API 1 → Gemini fast
  */
 const FALLBACK_STRATEGY: FallbackConfig[] = [
   { 
@@ -38,13 +38,13 @@ const FALLBACK_STRATEGY: FallbackConfig[] = [
     displayLabel: 'API 2 → gemini-3' 
   },
   { 
-    model: 'gemini-flash-latest', 
+    model: 'gemini-2.5-flash-lite-latest', 
     apiKeyEnv: 'GEMINI_API_KEY_1', 
     useSearch: true, 
     displayLabel: 'API 1 → gemini-2.5-latest' 
   },
   { 
-    model: 'gemini-flash-latest', 
+    model: 'gemini-flash-lite-latest', 
     apiKeyEnv: 'GEMINI_API_KEY_2', 
     useSearch: true, 
     displayLabel: 'API 2 → gemini-flash-latest' 
@@ -56,6 +56,27 @@ const FALLBACK_STRATEGY: FallbackConfig[] = [
     displayLabel: 'API 1 → Gemini fast' 
   },
 ];
+
+/**
+ * Enhanced Env Access: Cloudflare and Vite often require different access patterns.
+ * We prioritize process.env but fall back to checking if the key is available globally.
+ */
+function getEnvKey(keyName: string): string | undefined {
+  try {
+    // 1. Standard process.env check
+    if (typeof process !== 'undefined' && process.env && (process.env as any)[keyName]) {
+      return (process.env as any)[keyName];
+    }
+    // 2. Vite specific import.meta.env check
+    const metaEnv = (import.meta as any).env;
+    if (metaEnv && metaEnv[keyName]) {
+      return metaEnv[keyName];
+    }
+  } catch (e) {
+    // Fallback if environment access throws
+  }
+  return undefined;
+}
 
 function extractJSON(text: string): any {
   try {
@@ -78,21 +99,31 @@ async function executeWithFallback<T>(
   onStatusUpdate: (status: FallbackStatus) => void,
   executor: (ai: GoogleGenAI, config: FallbackConfig) => Promise<T>
 ): Promise<T> {
+  let attempts = 0;
   for (const config of FALLBACK_STRATEGY) {
-    const apiKey = (process.env as any)[config.apiKeyEnv];
-    if (!apiKey) continue;
+    const apiKey = getEnvKey(config.apiKeyEnv);
+    
+    // If specific key isn't found, try the primary API_KEY as a last resort for this tier
+    const finalKey = apiKey || getEnvKey('API_KEY');
 
+    if (!finalKey) {
+      console.debug(`[Fallback] Skipping ${config.displayLabel} - No Key Found.`);
+      continue;
+    }
+
+    attempts++;
     onStatusUpdate({ label: config.displayLabel });
 
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenAI({ apiKey: finalKey });
       return await executor(ai, config);
     } catch (error: any) {
-      console.warn(`[Fallback] ${taskLabel} failed on ${config.displayLabel}. Error: ${error?.message}`);
+      console.warn(`[Fallback] ${taskLabel} attempt ${attempts} failed (${config.displayLabel}). Error: ${error?.message}`);
+      // Continue to next configuration
       continue;
     }
   }
-  throw new Error("All Gemini models exhausted. Please try again later.");
+  throw new Error("Service Congestion: All laboratory paths are busy. Please check your API keys or try again in 60 seconds.");
 }
 
 export async function generateQuizQuestions(
@@ -101,33 +132,33 @@ export async function generateQuizQuestions(
   difficulty: Difficulty = 'Medium',
   onStatusUpdate: (status: FallbackStatus) => void = () => {}
 ): Promise<Question[]> {
-  // Minimized prompt for faster parsing and lower latency
-  const prompt = `Return ${count} MCQs for "${topic}" (${difficulty}). 
-  Region: India (ESIC/RRB/GPAT). 
-  JSON: Array<{text, options:[4], correctAnswer:0-3, explanation, distractorRationale}>.`;
+  // ULTRA-MINIMAL PROMPT for max speed
+  const prompt = `Return ${count} MCQs for "${topic}" (${difficulty}). Indian Pharmacist Exam context. JSON: Array<{text, options:[4], correctAnswer:0-3, explanation, distractorRationale}>.`;
 
   return await executeWithFallback("Generate Quiz", onStatusUpdate, async (ai, config) => {
     const response = await ai.models.generateContent({
       model: config.model,
       contents: prompt,
       config: {
-        systemInstruction: "You are an efficient MCQ generator for Indian Pharmacists. Use IP standards.",
+        systemInstruction: "Fast Indian Pharmacy MCQ Generator. Strict JSON.",
         tools: config.useSearch ? [{ googleSearch: {} }] : [],
         responseMimeType: "application/json",
-        // Disable thinking budget for maximum speed on flash models
-        thinkingConfig: { thinkingBudget: 0 }
+        thinkingConfig: { thinkingBudget: 0 } // Disable thinking for speed
       }
     });
+
+    const text = response.text;
+    if (!text) throw new Error("Empty response");
 
     const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     const sources = groundingChunks
       .filter((chunk: any) => chunk.web)
       .map((chunk: any) => ({
-        title: chunk.web.title || "Source",
+        title: chunk.web.title || "Reference",
         uri: chunk.web.uri
       }));
 
-    const rawQuestions = extractJSON(response.text);
+    const rawQuestions = extractJSON(text);
     return rawQuestions.map((q: any, idx: number) => ({
       ...q,
       id: `q-${Date.now()}-${idx}`,
@@ -149,7 +180,7 @@ export async function getDetailedExplanation(
   correctOption: string,
   onStatusUpdate: (status: FallbackStatus) => void = () => {}
 ): Promise<DeepDiveResponse> {
-  const prompt = `Explain "${correctOption}" vs "${selectedOption}" for: "${question}". JSON: {explanation, suggestions:[]}`;
+  const prompt = `Explain why "${correctOption}" is right and "${selectedOption}" is wrong for: "${question}". JSON: {explanation: string, suggestions: string[]}`;
 
   return await executeWithFallback("Deep Dive", onStatusUpdate, async (ai, config) => {
     const response = await ai.models.generateContent({
@@ -167,13 +198,13 @@ export async function getDetailedExplanation(
     const sources = groundingChunks
       .filter((chunk: any) => chunk.web)
       .map((chunk: any) => ({
-        title: chunk.web.title || "Reference",
+        title: chunk.web.title || "Scientific Proof",
         uri: chunk.web.uri
       }));
 
     return {
-      explanation: result.explanation || "Analysis unavailable.",
-      suggestions: result.suggestions || [],
+      explanation: result.explanation || "Detailed analysis is loading...",
+      suggestions: Array.isArray(result.suggestions) ? result.suggestions : [],
       sources: sources.length > 0 ? sources : undefined
     };
   });
