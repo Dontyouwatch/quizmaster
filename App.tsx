@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { TOPICS_METADATA } from './constants';
 import { Question, Difficulty, UserStats, QuizAttempt } from './types';
 import { TopicCard } from './components/TopicCard';
@@ -20,6 +20,7 @@ const App: React.FC = () => {
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [pendingTopicId, setPendingTopicId] = useState<string | null>(null);
   const [lastConfig, setLastConfig] = useState<{topic: string, count: number, difficulty: Difficulty} | null>(null);
+  const [hasApiKey, setHasApiKey] = useState(true);
 
   const [stats, setStats] = useState<UserStats>(() => {
     const saved = localStorage.getItem('pharmaquiz_stats');
@@ -32,11 +33,47 @@ const App: React.FC = () => {
     };
   });
 
+  // Check for API Key on mount
+  useEffect(() => {
+    const checkKey = async () => {
+      try {
+        // Check if window.aistudio is available (common in these specialized environments)
+        if (typeof (window as any).aistudio?.hasSelectedApiKey === 'function') {
+          const hasKey = await (window as any).aistudio.hasSelectedApiKey();
+          setHasApiKey(hasKey);
+        } else {
+          // Fallback for standard environments: check process.env or global shim safely
+          const envApiKey = (typeof process !== 'undefined' && process.env?.API_KEY) || (globalThis as any).process?.env?.API_KEY;
+          setHasApiKey(!!envApiKey);
+        }
+      } catch (e) {
+        setHasApiKey(false);
+      }
+    };
+    checkKey();
+  }, []);
+
   useEffect(() => {
     localStorage.setItem('pharmaquiz_stats', JSON.stringify(stats));
   }, [stats]);
 
+  const handleOpenKeySelector = async () => {
+    if (typeof (window as any).aistudio?.openSelectKey === 'function') {
+      await (window as any).aistudio.openSelectKey();
+      // Assume success as per race condition guidelines
+      setHasApiKey(true);
+      setError(null);
+    } else {
+      setError("API Key Selector is not available in this environment. Please set API_KEY in your Cloudflare settings.");
+    }
+  };
+
   const handleStartPractice = async (topic: string, count: number, difficulty: Difficulty = globalDifficulty) => {
+    if (!hasApiKey) {
+      setError("Please select an API Key first to enable AI question generation.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setSelectedTopic(topic);
@@ -50,6 +87,10 @@ const App: React.FC = () => {
       setAnswers({});
     } catch (err: any) {
       setError(err?.message || "Generation failed. Please check your connectivity and try again.");
+      // If the error specifically looks like a missing key error from the service
+      if (err?.message?.includes("API configuration missing")) {
+        setHasApiKey(false);
+      }
     } finally {
       setLoading(false);
     }
@@ -138,6 +179,14 @@ const App: React.FC = () => {
           </nav>
 
           <div className="flex items-center gap-4">
+            {!hasApiKey && (
+              <button 
+                onClick={handleOpenKeySelector}
+                className="bg-amber-100 text-amber-700 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-amber-200 transition-all border border-amber-200 shadow-sm"
+              >
+                ⚠️ Select API Key
+              </button>
+            )}
             <button 
               onClick={() => setView('dashboard')}
               className="bg-blue-50 text-blue-600 p-2.5 rounded-xl hover:bg-blue-100 transition-colors md:hidden"
@@ -157,10 +206,17 @@ const App: React.FC = () => {
             <div className="mb-12 p-6 bg-red-50 border border-red-200 rounded-[32px] animate-reveal flex flex-col md:flex-row items-center gap-6 shadow-sm">
               <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-3xl shadow-sm shrink-0">🚨</div>
               <div className="flex-1 text-center md:text-left">
-                <h4 className="font-black text-red-900 text-sm uppercase tracking-widest mb-1">System Error</h4>
+                <h4 className="font-black text-red-900 text-sm uppercase tracking-widest mb-1">System Message</h4>
                 <p className="text-red-700 text-sm font-medium">{error}</p>
               </div>
-              <button onClick={() => lastConfig && handleStartPractice(lastConfig.topic, lastConfig.count)} className="px-8 py-3 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-red-100 active:scale-95">Retry Session</button>
+              <div className="flex gap-2">
+                {!hasApiKey && (
+                  <button onClick={handleOpenKeySelector} className="px-8 py-3 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg active:scale-95">Select Key</button>
+                )}
+                {lastConfig && hasApiKey && (
+                  <button onClick={() => handleStartPractice(lastConfig.topic, lastConfig.count)} className="px-8 py-3 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-red-100 active:scale-95">Retry Session</button>
+                )}
+              </div>
             </div>
           )}
 
