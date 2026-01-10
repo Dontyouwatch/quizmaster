@@ -46,8 +46,8 @@ const getViteKey = (name: string): string | undefined => {
  * Strict fallback order as requested:
  * 1. API 1 → gemini-3
  * 2. API 2 → gemini-3
- * 3. API 1 → gemini-2.5-latest
- * 4. API 2 → gemini-flash-latest
+ * 3. API 1 → gemini-2.5-lite-latest
+ * 4. API 2 → gemini-flash-lite-latest
  * 5. API 1 → Gemini fast
  */
 const FALLBACK_STRATEGY: FallbackConfig[] = [
@@ -161,7 +161,7 @@ async function executeWithFallback<T>(
     }
   }
   
-  throw new Error("Service Congestion: All laboratory paths are busy. Please verify your VITE_GEMINI_API_KEY_1 and VITE_GEMINI_API_KEY_2 are correctly set in Cloudflare and that you have triggered a new deployment after saving them.");
+  throw new Error("Service Congestion: All laboratory paths are busy. Please verify your environment variables (VITE_GEMINI_API_KEY_1, VITE_GEMINI_API_KEY_2) are correctly set and that you have triggered a new deployment after saving them.");
 }
 
 export async function generateQuizQuestions(
