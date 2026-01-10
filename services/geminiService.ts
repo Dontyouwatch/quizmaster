@@ -1,121 +1,131 @@
-// geminiFallbackService.ts
-// World-class Gemini Service for PharmaQuiz Pro
-// - Strict fallback: KEY_1 → KEY_2 → next model → KEY_1 …
-// - Modular: add keys/models by simply extending env vars / arrays
-// - Future-proof: zero code change to core logic
-
 import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
 import { Question, Difficulty } from "../types";
 
-/* ------------------------------------------------------------------ */
-/* 1.  ENV UTILITIES                                                  */
-/* ------------------------------------------------------------------ */
-function getEnv(key: string): string | undefined {
+/**
+ * World-class Gemini Service for PharmaQuiz Pro
+ * - Implements strict fallback: model sequence -> key sequence
+ * - Resolves the Google Search + JSON mode 400 conflict
+ * - Auto-discovers API keys from environment
+ */
+
+/** Utility to retrieve environment variables across different environments (Vite/Node/CF) */
+function getEnvKey(key: string): string | undefined {
   try {
-    // Vite
-    if (typeof import.meta !== "undefined" && import.meta.env?.[key])
-      return import.meta.env[key].trim();
-    // Node / CF
-    if (typeof process !== "undefined" && process.env?.[key])
-      return process.env[key].trim();
-  } catch {}
+    // @ts-ignore - Vite envs
+    if (typeof import.meta !== 'undefined' && import.meta.env?.[key]) return import.meta.env[key];
+    // @ts-ignore - Node/Process envs
+    if (typeof process !== 'undefined' && process.env?.[key]) return process.env[key];
+  } catch (e) {}
   return undefined;
 }
 
-/** Auto-discover GEMINI_API_KEY_1, GEMINI_API_KEY_2, …, GEMINI_API_KEY_N */
-function discoverGeminiKeys(): string[] {
+/** Auto-discovers GEMINI_API_KEY_1, GEMINI_API_KEY_2, etc. prioritizing standard API_KEY */
+function getAllAvailableKeys(): string[] {
   const keys: string[] = [];
+  
+  // 1. Primary key from system instructions
+  const primary = getEnvKey('API_KEY');
+  if (primary) keys.push(primary);
+
+  // 2. Secondary/Fallback keys
   let i = 1;
-  while (true) {
-    const k = getEnv(`GEMINI_API_KEY_${i}`);
-    if (!k) break;
-    keys.push(k);
+  while (i < 10) {
+    const k = getEnvKey(`GEMINI_API_KEY_${i}`);
+    if (k && !keys.includes(k)) keys.push(k);
     i++;
   }
+
+  // 3. Last resort check for process.env.API_KEY if not caught by getEnvKey
+  if (keys.length === 0 && typeof process !== 'undefined' && process.env.API_KEY) {
+    keys.push(process.env.API_KEY);
+  }
+
   return keys;
 }
 
-/* ------------------------------------------------------------------ */
-/* 2.  FALLBACK PIPELINE BUILDER                                      */
-/* ------------------------------------------------------------------ */
-const MODELS = [
-  "gemini-3-flash-preview",
-  "gemini-2.0-flash-exp",
-  "gemini-1.5-flash-latest",
-  // append future models here
+/** 
+ * Preferred working model list. 
+ * 'gemini-3-flash-preview' is the high-performance default for text tasks.
+ * 'gemini-2.0-flash-exp' is a reliable modern fallback.
+ */
+const FALLBACK_MODELS = [
+  'gemini-3-flash-preview',
+  'gemini-2.0-flash-exp',
+  'gemini-3-pro-preview'
 ];
 
-const KEYS = discoverGeminiKeys();
+/** Execution wrapper that handles the model/key fallback logic */
+async function executeWithPipeline<T>(
+  task: (ai: GoogleGenAI, model: string) => Promise<T>
+): Promise<T> {
+  const keys = getAllAvailableKeys();
+  if (keys.length === 0) {
+    throw new Error("API configuration missing. Please ensure process.env.API_KEY is set.");
+  }
 
-interface FallbackStep {
-  model: string;
-  apiKey: string;
-  label: string;
-}
+  const errors: string[] = [];
 
-const FALLBACK_PIPELINE: FallbackStep[] = (() => {
-  const pipe: FallbackStep[] = [];
-  for (const m of MODELS) for (const k of KEYS)
-    pipe.push({ model: m, apiKey: k, label: `${m} → ${k.slice(0, 8)}…` });
-  return pipe;
-})();
-
-/* ------------------------------------------------------------------ */
-/* 3.  GENERIC FALLBACK RUNNER                                        */
-/* ------------------------------------------------------------------ */
-async function runWithFallback<T>(executor: (ai: GoogleGenAI) => Promise<T>): Promise<T> {
-  for (const step of FALLBACK_PIPELINE) {
-    const ai = new GoogleGenAI({ apiKey: step.apiKey });
-    console.warn(`[GeminiFallback] Trying ${step.label}`);
-    try {
-      return await executor(ai);
-    } catch (e: any) {
-      const code = e.status ?? e.code ?? "UNKNOWN";
-      console.warn(`[GeminiFallback] ${step.label} failed (${code}): ${e.message}`);
+  for (const model of FALLBACK_MODELS) {
+    for (const key of keys) {
+      try {
+        const ai = new GoogleGenAI({ apiKey: key });
+        return await task(ai, model);
+      } catch (err: any) {
+        const errorMsg = err.message || "Unknown error";
+        console.warn(`[Pipeline] Failed ${model} with key ${key.slice(0, 6)}...: ${errorMsg}`);
+        errors.push(`${model}: ${errorMsg}`);
+      }
     }
   }
-  throw new Error("All Gemini models exhausted.");
+
+  throw new Error(`Service Congestion: All laboratory paths are busy. Final error: ${errors[errors.length - 1]}`);
 }
 
-/* ------------------------------------------------------------------ */
-/* 4.  JSON EXTRACTION (re-usable)                                    */
-/* ------------------------------------------------------------------ */
-function extractJSON(text: string | undefined): any {
-  if (!text) throw new Error("Empty response from AI");
-  const t = text.trim();
+/** Robust JSON extraction helper */
+function parseJsonSafe(text: string | undefined): any {
+  if (!text) throw new Error("Received empty response from AI");
+  const trimmed = text.trim();
+  
   try {
-    return JSON.parse(t);
-  } catch {
-    const m = t.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (m) return JSON.parse(m[1].trim());
-
-    const arr = t.match(/(\[[\s\S]*\])/);
-    if (arr) return JSON.parse(arr[0].trim());
-
-    const obj = t.match(/(\{[\s\S]*\})/);
-    if (obj) return JSON.parse(obj[0].trim());
-
-    throw new Error("No valid JSON found in AI response");
+    return JSON.parse(trimmed);
+  } catch (e) {
+    // Attempt to extract from markdown blocks
+    const codeBlock = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (codeBlock) {
+      try {
+        return JSON.parse(codeBlock[1].trim());
+      } catch (inner) {}
+    }
+    
+    // Brute force array/object search
+    const firstBracket = trimmed.indexOf('[');
+    const lastBracket = trimmed.lastIndexOf(']');
+    if (firstBracket !== -1 && lastBracket !== -1) {
+      try {
+        return JSON.parse(trimmed.substring(firstBracket, lastBracket + 1));
+      } catch (inner) {}
+    }
+    
+    throw new Error("The AI response could not be parsed as valid JSON.");
   }
 }
 
-/* ------------------------------------------------------------------ */
-/* 5.  QUIZ GENERATION  (keeps your schema & prompt)                  */
-/* ------------------------------------------------------------------ */
+/** Generates MCQ questions for specific pharmacy topics */
 export async function generateQuizQuestions(
-  topic: string,
-  count = 15,
-  difficulty: Difficulty = "Medium"
+  topic: string, 
+  count: number = 15, 
+  difficulty: Difficulty = 'Medium'
 ): Promise<Question[]> {
-  return runWithFallback(async (ai) => {
-    const prompt = `Generate exactly ${count} Multiple Choice Questions (MCQs) for the topic: "${topic}" at ${difficulty} difficulty level.
-Context: Indian Government Pharmacist Exams (ESIC, RRB, GPAT, DHS).`;
+  return executeWithPipeline(async (ai, model) => {
+    const prompt = `Generate exactly ${count} Multiple Choice Questions (MCQs) for the topic: "${topic}" at ${difficulty} difficulty level. 
+Context: Indian Government Pharmacist Exams (ESIC, RRB, GPAT, DHS). 
+Output format: JSON array of objects.`;
 
-    const res: GenerateContentResponse = await ai.models.generateContent({
-      model: MODELS[0], // first model of pipeline (will be overridden by runner)
+    const response: GenerateContentResponse = await ai.models.generateContent({
+      model,
       contents: prompt,
       config: {
-        systemInstruction: "You are an expert Indian Pharmacy Exam content generator. Output valid JSON only according to the schema provided.",
+        systemInstruction: "You are an expert Indian Pharmacy Exam content generator. Ensure high clinical accuracy and focus on the Indian pharmacy curriculum. Output valid JSON only.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -134,8 +144,8 @@ Context: Indian Government Pharmacist Exams (ESIC, RRB, GPAT, DHS).`;
       }
     });
 
-    const raw = extractJSON(res.text);
-    return raw.map((q: any, idx: number) => ({
+    const data = parseJsonSafe(response.text);
+    return data.map((q: any, idx: number) => ({
       ...q,
       id: `q-${Date.now()}-${idx}`,
       topic
@@ -143,48 +153,46 @@ Context: Indian Government Pharmacist Exams (ESIC, RRB, GPAT, DHS).`;
   });
 }
 
-/* ------------------------------------------------------------------ */
-/* 6.  DEEP DIVE EXPLANATION  (Google Search grounding)               */
-/* ------------------------------------------------------------------ */
 export interface DeepDiveResponse {
   explanation: string;
   suggestions: string[];
   sources?: { title: string; uri: string }[];
 }
 
+/** Provides a grounded, detailed clinical analysis */
 export async function getDetailedExplanation(
-  question: string,
-  selectedOption: string,
+  question: string, 
+  selectedOption: string, 
   correctOption: string
 ): Promise<DeepDiveResponse> {
-  return runWithFallback(async (ai) => {
-    const prompt = `Perform a deep-dive pharmaceutical analysis for: "${question}".
+  return executeWithPipeline(async (ai, model) => {
+    const prompt = `Perform a deep-dive pharmaceutical analysis for: "${question}". 
 Compare Correct Answer: "${correctOption}" vs Selected Answer: "${selectedOption}".
 Discuss mechanism of action, side effects, and clinical indications relevant to Indian Pharmacist exams.`;
 
-    const res: GenerateContentResponse = await ai.models.generateContent({
-      model: MODELS[0],
+    // CRITICAL: We avoid responseMimeType when using googleSearch to prevent the 400 conflict.
+    const response: GenerateContentResponse = await ai.models.generateContent({
+      model,
       contents: prompt,
       config: {
         systemInstruction: "You are a clinical pharmacy professor specializing in Indian competitive exams. Provide detailed Markdown explanations and extract key related topics.",
-        tools: [{ googleSearch: {} }] // grounding allowed, no JSON mime-type
+        tools: [{ googleSearch: {} }],
       }
     });
 
-    const text = res.text || "";
-    const chunks = (res.candidates?.[0]?.groundingMetadata?.groundingChunks as any[]) || [];
-    const sources = chunks
-      .filter((c) => c.web)
-      .map((c) => ({ title: c.web.title || "Source", uri: c.web.uri || "#" }));
+    const text = response.text || "";
+    const groundingChunks = (response.candidates?.[0]?.groundingMetadata?.groundingChunks as any[]) || [];
+    const sources = groundingChunks
+      .filter((chunk) => chunk.web)
+      .map((chunk) => ({
+        title: chunk.web?.title || "Scientific Reference",
+        uri: chunk.web?.uri || "#"
+      }));
 
     return {
       explanation: text,
-      suggestions: [
-        `Pharmacology of ${correctOption}`,
-        "Clinical Toxicology",
-        "Dose Calculations"
-      ],
-      sources: sources.length ? sources : undefined
+      suggestions: [`Pharmacology of ${correctOption}`, "NLEM 2022 Guidelines", "Dose Calculations"],
+      sources: sources.length > 0 ? sources : undefined
     };
   });
 }

@@ -247,7 +247,7 @@ const App: React.FC = () => {
       )}
 
       {view === 'quiz' && (
-        <QuizEngine questions={questions} onFinish={handleFinishQuiz} onCancel={reset} onExploreRelated={(topic) => handleStartPractice(topic, 10)} />
+        <QuizEngine questions={questions} onFinish={handleFinishQuiz} onCancel={reset} onExploreRelated={(topic) => { handleStartPractice(topic, 10); }} />
       )}
 
       {view === 'stats' && (
