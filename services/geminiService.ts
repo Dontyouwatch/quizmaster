@@ -25,7 +25,7 @@ export async function generateQuizQuestions(
   }
 
   const ai = new GoogleGenAI({ apiKey });
-  const model = 'gemini-2.5-pro'; 
+  const model = 'gemini-flash-latest'; 
   
   const prompt = `Generate exactly ${count} Multiple Choice Questions (MCQs) for the topic: "${topic}" at ${difficulty} difficulty level. 
 Context: Indian Government Pharmacist Exams (ESIC, RRB, GPAT, DHS). 
