@@ -21,7 +21,7 @@ const App: React.FC = () => {
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [pendingTopicId, setPendingTopicId] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [lastConfig, setLastConfig] = useState<{topic: string, count: number} | null>(null);
+  const [lastConfig, setLastConfig] = useState<{topic: string, count: number, difficulty: Difficulty} | null>(null);
 
   const [stats, setStats] = useState<UserStats>(() => {
     const saved = localStorage.getItem('pharmaquiz_stats');
@@ -42,7 +42,7 @@ const App: React.FC = () => {
     setLoading(true);
     setError(null);
     setSelectedTopic(topic);
-    setLastConfig({ topic, count });
+    setLastConfig({ topic, count, difficulty });
     setShowSetupModal(false);
     setIsMobileMenuOpen(false);
     
@@ -52,10 +52,7 @@ const App: React.FC = () => {
       setView('quiz');
       setAnswers({});
     } catch (err: any) {
-      const isRateLimit = err?.message?.includes("429") || err?.status === 429;
-      setError(isRateLimit 
-        ? "The Pharmacy API is currently under heavy load. We've tried retrying several times, but it's still busy. Please wait a moment and try again."
-        : "Failed to generate questions. The laboratory is temporarily offline. Please try again.");
+      setError(err?.message || "Failed to generate questions. The service is experiencing peak demand. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -127,10 +124,16 @@ const App: React.FC = () => {
           <div className="absolute inset-0 flex items-center justify-center text-4xl">💊</div>
         </div>
         <h2 className="text-2xl font-bold text-slate-800 mb-2">Compounding Your Quiz...</h2>
-        <p className="text-slate-500 max-w-sm">Our <strong>Gemini 2.5 Flash-Lite</strong> model is verifying clinical facts for "{selectedTopic}".</p>
-        <div className="mt-8 px-4 py-2 bg-slate-50 rounded-full border border-slate-100 flex items-center gap-2">
-           <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-           <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Grounding in Google Search</span>
+        <p className="text-slate-500 max-w-sm mb-4">We are rotating through our high-availability Gemini models to prepare your session for "{selectedTopic}".</p>
+        <div className="flex flex-col items-center gap-3">
+          <div className="px-4 py-2 bg-blue-50 rounded-full border border-blue-100 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+            <span className="text-[10px] font-black uppercase text-blue-600 tracking-widest">Multi-Key Fallback Active</span>
+          </div>
+          <div className="px-4 py-2 bg-green-50 rounded-full border border-green-100 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+            <span className="text-[10px] font-black uppercase text-green-600 tracking-widest">Verifying clinical facts via Search</span>
+          </div>
         </div>
       </div>
     );
@@ -148,7 +151,7 @@ const App: React.FC = () => {
             </div>
             <div className="flex flex-col">
               <h1 className="text-sm md:text-lg font-black text-slate-800 leading-tight">PharmaQuiz <span className="text-blue-600">Pro</span></h1>
-              <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-0.5">Reliability Enhanced</p>
+              <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-0.5">Zero-Downtime Engine</p>
             </div>
           </div>
           
@@ -200,14 +203,14 @@ const App: React.FC = () => {
               <div className="flex flex-col md:flex-row items-center gap-4">
                 <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-2xl shadow-sm shrink-0">⚠️</div>
                 <div className="flex-1 text-center md:text-left">
-                  <h4 className="font-black text-red-800 text-sm uppercase tracking-widest mb-1">Laboratory Busy</h4>
+                  <h4 className="font-black text-red-800 text-sm uppercase tracking-widest mb-1">Service Congestion</h4>
                   <p className="text-red-600 text-sm leading-relaxed">{error}</p>
                 </div>
                 <button 
-                  onClick={() => lastConfig && handleStartPractice(lastConfig.topic, lastConfig.count)}
+                  onClick={() => lastConfig && handleStartPractice(lastConfig.topic, lastConfig.count, lastConfig.difficulty)}
                   className="px-6 py-2.5 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-red-100 active:scale-95"
                 >
-                  Retry Now
+                  Force Retry
                 </button>
               </div>
             </div>
@@ -216,14 +219,14 @@ const App: React.FC = () => {
           <section className="mb-16 text-center max-w-3xl mx-auto animate-reveal">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-wider mb-6 border border-green-100">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-              Enhanced Model: Gemini 2.5 Flash-Lite Active
+              Enhanced System: Strict Key Rotation Active
             </div>
             <h2 className="text-3xl md:text-5xl font-black text-slate-900 mb-6 leading-tight break-words">
               Master your <span className="text-blue-600 underline decoration-blue-100 decoration-8 underline-offset-4">Pharmacist Exams</span>
             </h2>
             <p className="text-base md:text-lg text-slate-500 mb-10 leading-relaxed">
-              Targeted practice for ESIC, RRB, GPAT, and State PSC. 
-              Our optimized AI system now provides faster, more reliable generation.
+              Precision practice for ESIC, RRB, GPAT, and State PSC. 
+              Our new multi-tier fallback architecture ensures the laboratory stays online even during peak hours.
             </p>
           </section>
 
