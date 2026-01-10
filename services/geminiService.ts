@@ -7,7 +7,7 @@ import { Question, Difficulty } from "../types";
  */
 interface FallbackConfig {
   model: string;
-  apiKeyEnv: string;
+  getApiKey: () => string | undefined;
   useSearch: boolean;
   displayLabel: string;
 }
@@ -17,7 +17,27 @@ export interface FallbackStatus {
 }
 
 /**
- * Strict fallback order as requested (Updated for Vite/Cloudflare prefixing):
+ * Vite requires STATIC access to environment variables (import.meta.env.VITE_...)
+ * to replace them during the build process. Dynamic keys like env[varName] fail in production.
+ */
+const getViteKey = (name: string): string | undefined => {
+  const env = (import.meta as any).env;
+  
+  // Explicitly mapping keys so Vite can see and replace them during build
+  if (name === 'VITE_GEMINI_API_KEY_1') return env.VITE_GEMINI_API_KEY_1;
+  if (name === 'VITE_GEMINI_API_KEY_2') return env.VITE_GEMINI_API_KEY_2;
+  if (name === 'VITE_API_KEY') return env.VITE_API_KEY;
+  
+  // Fallback to process.env for local development / other environments
+  try {
+    return (process.env as any)[name];
+  } catch (e) {
+    return undefined;
+  }
+};
+
+/**
+ * Strict fallback order as requested:
  * 1. API 1 → gemini-3
  * 2. API 2 → gemini-3
  * 3. API 1 → gemini-2.5-latest
@@ -27,55 +47,35 @@ export interface FallbackStatus {
 const FALLBACK_STRATEGY: FallbackConfig[] = [
   { 
     model: 'gemini-3-flash-preview', 
-    apiKeyEnv: 'VITE_GEMINI_API_KEY_1', 
+    getApiKey: () => getViteKey('VITE_GEMINI_API_KEY_1'), 
     useSearch: true, 
     displayLabel: 'API 1 → gemini-3' 
   },
   { 
     model: 'gemini-3-flash-preview', 
-    apiKeyEnv: 'VITE_GEMINI_API_KEY_2', 
+    getApiKey: () => getViteKey('VITE_GEMINI_API_KEY_2'), 
     useSearch: true, 
     displayLabel: 'API 2 → gemini-3' 
   },
   { 
-    model: 'gemini-2.5-flash', 
-    apiKeyEnv: 'VITE_GEMINI_API_KEY_1', 
+    model: 'gemini-2.5-flash-lite-latest', 
+    getApiKey: () => getViteKey('VITE_GEMINI_API_KEY_1'), 
     useSearch: true, 
     displayLabel: 'API 1 → gemini-2.5-latest' 
   },
   { 
-    model: 'gemini-2.5-flash', 
-    apiKeyEnv: 'VITE_GEMINI_API_KEY_2', 
+    model: 'gemini-flash-lite-latest', 
+    getApiKey: () => getViteKey('VITE_GEMINI_API_KEY_2'), 
     useSearch: true, 
     displayLabel: 'API 2 → gemini-flash-latest' 
   },
   { 
     model: 'gemini-3-flash-preview', 
-    apiKeyEnv: 'VITE_API_KEY', 
+    getApiKey: () => getViteKey('VITE_API_KEY') || getViteKey('VITE_GEMINI_API_KEY_1'), 
     useSearch: false, 
     displayLabel: 'API 1 → Gemini fast' 
   },
 ];
-
-/**
- * In Vite/Cloudflare, variables must be prefixed with VITE_ to be accessible via import.meta.env
- */
-function getEnvKey(keyName: string): string | undefined {
-  // Use import.meta.env for Vite production builds
-  const env = (import.meta as any).env;
-  if (env && env[keyName]) {
-    return env[keyName];
-  }
-  
-  // Fallback for different build environments
-  try {
-    if (typeof process !== 'undefined' && process.env && (process.env as any)[keyName]) {
-      return (process.env as any)[keyName];
-    }
-  } catch (e) {}
-  
-  return undefined;
-}
 
 function extractJSON(text: string): any {
   try {
@@ -100,10 +100,10 @@ async function executeWithFallback<T>(
 ): Promise<T> {
   let attempts = 0;
   for (const config of FALLBACK_STRATEGY) {
-    const apiKey = getEnvKey(config.apiKeyEnv);
+    const apiKey = config.getApiKey();
     
     if (!apiKey) {
-      console.debug(`[Fallback] Skipping ${config.displayLabel} - Key ${config.apiKeyEnv} not found in environment.`);
+      console.debug(`[Fallback] Skipping ${config.displayLabel} - Key not found.`);
       continue;
     }
 
@@ -114,11 +114,12 @@ async function executeWithFallback<T>(
       const ai = new GoogleGenAI({ apiKey });
       return await executor(ai, config);
     } catch (error: any) {
-      console.warn(`[Fallback] ${taskLabel} attempt ${attempts} failed (${config.displayLabel}). Error: ${error?.message}`);
+      console.warn(`[Fallback] ${taskLabel} failed on ${config.displayLabel}: ${error?.message}`);
+      // If it's a 404 or specific error, we definitely want to move to next
       continue;
     }
   }
-  throw new Error("Service Congestion: All laboratory paths are busy. Please ensure your environment variables (VITE_GEMINI_API_KEY_1, etc.) are set correctly in Cloudflare.");
+  throw new Error("Service Congestion: All laboratory paths are busy. Ensure VITE_GEMINI_API_KEY_1 & VITE_GEMINI_API_KEY_2 are set in Cloudflare Settings and REDEPLOY your app.");
 }
 
 export async function generateQuizQuestions(
@@ -127,8 +128,7 @@ export async function generateQuizQuestions(
   difficulty: Difficulty = 'Medium',
   onStatusUpdate: (status: FallbackStatus) => void = () => {}
 ): Promise<Question[]> {
-  // Ultra-concise prompt to minimize token generation time
-  const prompt = `Generate ${count} MCQs for "${topic}" (Level: ${difficulty}). Context: India Pharmacist. JSON Array format: [{text, options:[4], correctAnswer:0-3, explanation, distractorRationale}]`;
+  const prompt = `Generate ${count} MCQs for "${topic}" (${difficulty}). Indian Pharmacist Exam. JSON Array format: [{text, options:[4], correctAnswer:0-3, explanation, distractorRationale}]`;
 
   return await executeWithFallback("Generate Quiz", onStatusUpdate, async (ai, config) => {
     const response = await ai.models.generateContent({
@@ -175,7 +175,7 @@ export async function getDetailedExplanation(
   correctOption: string,
   onStatusUpdate: (status: FallbackStatus) => void = () => {}
 ): Promise<DeepDiveResponse> {
-  const prompt = `Compare "${correctOption}" vs "${selectedOption}" for question: "${question}". JSON: {explanation: string, suggestions: string[]}`;
+  const prompt = `Compare "${correctOption}" vs "${selectedOption}" for: "${question}". JSON: {explanation: string, suggestions: string[]}`;
 
   return await executeWithFallback("Deep Dive", onStatusUpdate, async (ai, config) => {
     const response = await ai.models.generateContent({
